@@ -126,3 +126,30 @@ export function serializeIssueDescription(cleanDescription: string, notes: Issue
   return `${cleanDescription}\n\n${delimiter}\n${JSON.stringify(notes)}`;
 }
 
+export interface Announcement {
+  id: string;
+  title: string;
+  content: string;
+  created_at: string;
+  priority: 'normal' | 'important' | 'urgent';
+  views_count: number;
+  likes: number;
+  liked_by?: string[]; // IDs of users who liked/acknowledged it
+}
+
+export interface BuildingAsset {
+  id: string;
+  name: string;
+  description: string | null;
+  value: number;
+  category: string;
+  status: 'active' | 'excellent' | 'needs_maintenance' | 'under_repair';
+  last_maintenance: string | null;
+  next_maintenance: string | null;
+  purchase_date: string | null;
+  created_at: string;
+  contact_person?: string; // name of the contact / company
+  contact_phone?: string; // phone of the maintenance company
+}
+
+
