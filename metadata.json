@@ -1,0 +1,6 @@
+{
+  "name": "إدارة العمارة الذكية",
+  "description": "ssنظام متكامل لإدارة العمارات السكنية، تتبع المدفوعات، المصاريف، وشكاوى السكان.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
