@@ -39,7 +39,7 @@ async function seedAdmin() {
       return;
     }
   } else {
-    console.log("Admin user created successfully:", userId);
+    console.log("Admin user created successfully.....:", userId);
   }
 
   if (userId) {
