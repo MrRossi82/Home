@@ -13,6 +13,7 @@ import { Issues } from './views/Issues';
 import { Tenants } from './views/Tenants';
 import { Meetings } from './views/Meetings';
 import { TenantPayments } from './views/TenantPayments';
+import { Announcements } from './views/Announcements';
 
 const AppContent: React.FC = () => {
   const { currentUser, isLoading } = useAppContext();
@@ -56,6 +57,7 @@ const AppContent: React.FC = () => {
       )}
       {activeTab === 'tenants' && currentUser.role === 'admin' && <Tenants />}
       {activeTab === 'meetings' && <Meetings />}
+      {activeTab === 'announcements' && <Announcements />}
     </Layout>
   );
 };

@@ -108,4 +108,52 @@ INSERT INTO storage.buckets (id, name, public) VALUES ('attachments', 'attachmen
 CREATE POLICY "Allow public read attachments" ON storage.objects FOR SELECT USING (bucket_id = 'attachments');
 CREATE POLICY "Allow authenticated uploads" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'attachments' AND auth.role() = 'authenticated');
 
+-- Announcements Table (التعميمات والقرارات الإدارية)
+CREATE TABLE announcements (
+  id VARCHAR(255) PRIMARY KEY,
+  title VARCHAR(255) NOT NULL,
+  content TEXT NOT NULL,
+  priority VARCHAR(50) NOT NULL DEFAULT 'normal',
+  likes INTEGER DEFAULT 0,
+  liked_by TEXT[] DEFAULT '{}',
+  views_count INTEGER DEFAULT 0,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+ALTER TABLE announcements ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow read announcements" ON announcements FOR SELECT USING (auth.role() = 'authenticated');
+CREATE POLICY "Admin manage announcements" ON announcements FOR ALL USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'));
+CREATE POLICY "Allow update announcements likes" ON announcements FOR UPDATE USING (auth.role() = 'authenticated');
+
+-- Advertisements Table (سوق الإعلانات التجارية والعقارية)
+CREATE TABLE advertisements (
+  id VARCHAR(255) PRIMARY KEY,
+  title VARCHAR(255) NOT NULL,
+  content TEXT NOT NULL,
+  contact_name VARCHAR(255) NOT NULL,
+  contact_phone VARCHAR(255) NOT NULL,
+  price DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  status VARCHAR(50) NOT NULL DEFAULT 'draft',
+  created_by UUID REFERENCES profiles(id) ON DELETE CASCADE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+ALTER TABLE advertisements ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow read advertisements" ON advertisements FOR SELECT USING (
+  auth.role() = 'authenticated' AND (
+    status = 'published' OR 
+    created_by = auth.uid() OR
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+  )
+);
+CREATE POLICY "Allow insert advertisements" ON advertisements FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+CREATE POLICY "Allow update own advertisements" ON advertisements FOR UPDATE USING (
+  created_by = auth.uid() OR 
+  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+);
+CREATE POLICY "Allow delete own advertisements" ON advertisements FOR DELETE USING (
+  created_by = auth.uid() OR 
+  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+);
+
 -- ملاحظة: بعد تنفيذ هذا السكربت، يمكنك تشغيل `npx tsx seed.ts` لإنشاء المستخدم المسؤول وإضافته إلى جدول profiles.

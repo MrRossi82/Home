@@ -18,14 +18,16 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
     { id: 'financials', label: 'المالية', icon: Wallet },
     { id: 'issues', label: 'الشكاوى والصيانة', icon: AlertTriangle },
     { id: 'tenants', label: 'الشقق', icon: Users },
-    { id: 'meetings', label: 'الاجتماعات', icon: Calendar },
+    { id: 'meetings', label: 'الاجتماعات واللجان', icon: Calendar },
+    { id: 'announcements', label: 'التعميمات والقرارات', icon: Bell },
   ];
 
   const tenantNavItems = [
     { id: 'dashboard', label: 'الرئيسية', icon: LayoutDashboard },
     { id: 'payments', label: 'المدفوعات', icon: Wallet },
     { id: 'issues', label: 'الشكاوى والصيانة', icon: AlertTriangle },
-    { id: 'meetings', label: 'الاجتماعات', icon: Calendar },
+    { id: 'meetings', label: 'الاجتماعات واللجان', icon: Calendar },
+    { id: 'announcements', label: 'التعميمات والقرارات', icon: Bell },
   ];
 
   const navItems = currentUser?.role === 'admin' ? adminNavItems : tenantNavItems;

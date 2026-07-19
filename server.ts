@@ -194,6 +194,8 @@ async function startServer() {
     }
   });
 
+
+
   // Daily cron job at 9:00 AM as a fail-safe scheduler for service fee reminders
   cron.schedule('0 9 * * *', async () => {
     console.log('Automatically checking service fee due dates...');
