@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { parseIssueDescription } from '../types';
+import { Announcement, parseIssueDescription } from '../types';
 import { 
-  Wallet, CheckCircle, AlertCircle, Clock, Users, AlertTriangle
+  Wallet, CheckCircle, AlertCircle, Clock, Users, AlertTriangle, Megaphone, X, ThumbsUp, Bell, Eye
 } from 'lucide-react';
+import { AnnouncementsGrid } from '../components/AnnouncementsGrid';
 
 interface DashboardProps {
   setActiveTab?: (tab: string) => void;
@@ -13,11 +14,24 @@ interface DashboardProps {
 
 export const Dashboard: React.FC<DashboardProps> = ({ setActiveTab, setPaymentPreselectMonth, setIssuePreselectAdd }) => {
   const { 
-    currentUser, payments, expenses, issues, apartments
+    currentUser, payments, expenses, issues, apartments, announcements, likeAnnouncement
   } = useAppContext();
+
+  const [selectedAnn, setSelectedAnn] = useState<Announcement | null>(null);
 
   const isAdmin = currentUser?.role === 'admin';
   const currentMonth = new Date().toISOString().slice(0, 7);
+
+  const getPriorityBadge = (p: string) => {
+    switch (p) {
+      case 'urgent':
+        return <span className="px-3 py-1.5 rounded-full text-xs font-bold bg-red-500/10 text-red-400 border border-red-500/20 flex items-center gap-1 w-max"><AlertTriangle className="w-3 h-3" /> عاجل جداً</span>;
+      case 'important':
+        return <span className="px-3 py-1.5 rounded-full text-xs font-bold bg-[#D4AF37]/10 text-[#D4AF37] border border-[#D4AF37]/20 flex items-center gap-1 w-max"><Bell className="w-3 h-3" /> هام</span>;
+      default:
+        return <span className="px-3 py-1.5 rounded-full text-xs font-semibold bg-white/5 text-white/60 border border-white/10 flex items-center gap-1 w-max">إعلان عام</span>;
+    }
+  };
 
   // Admin Stats
   const totalIncome = payments.filter(p => p.status === 'paid').reduce((sum, p) => sum + p.amount, 0);
@@ -138,6 +152,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ setActiveTab, setPaymentPr
                 {issues.length === 0 && <p className="text-white/40 text-center py-4">لا يوجد شكاوى</p>}
               </div>
             </div>
+            
+            <div className="lg:col-span-2 bg-[#161616] rounded-3xl border border-white/5 p-6">
+              <h3 className="text-lg font-semibold text-white mb-6 flex items-center gap-2">
+                <Megaphone className="w-5 h-5 text-[#D4AF37]" />
+                آخر التعميمات
+              </h3>
+              <AnnouncementsGrid 
+                announcements={announcements.slice(0, 3)} 
+                onLike={likeAnnouncement}
+                onRead={setSelectedAnn}
+                currentUserId={currentUser?.id}
+              />
+            </div>
           </div>
         </div>
       ) : (
@@ -218,6 +245,65 @@ export const Dashboard: React.FC<DashboardProps> = ({ setActiveTab, setPaymentPr
                   إضافة طلب صيانة أو شكوى
                 </button>
               </div>
+            </div>
+            
+            <div className="md:col-span-2 bg-[#161616] rounded-3xl border border-white/5 p-6">
+              <h3 className="text-lg font-semibold text-white mb-6 flex items-center gap-2">
+                <Megaphone className="w-5 h-5 text-[#D4AF37]" />
+                آخر التعميمات
+              </h3>
+              <AnnouncementsGrid 
+                announcements={announcements.slice(0, 3)} 
+                onLike={likeAnnouncement}
+                onRead={setSelectedAnn}
+                currentUserId={currentUser?.id}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+      {selectedAnn && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className="bg-[#161616] w-full max-w-2xl rounded-3xl border border-white/10 overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-200">
+            <div className="p-6 border-b border-white/5 flex justify-between items-center bg-white/[0.01]">
+              <div className="flex items-center gap-3">
+                <Megaphone className="w-6 h-6 text-[#D4AF37]" />
+                <h3 className="text-xl font-bold text-white">{selectedAnn.title}</h3>
+              </div>
+              <button 
+                onClick={() => setSelectedAnn(null)} 
+                className="p-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-white/60 hover:text-white transition-all"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="flex flex-wrap items-center gap-4 text-xs text-white/40 border-b border-white/5 pb-4">
+                <div>{getPriorityBadge(selectedAnn.priority)}</div>
+                <div>تاريخ النشر: {new Date(selectedAnn.created_at).toLocaleString('ar-JO')}</div>
+                <div className="text-[#D4AF37]">الاطلاعات والموافقات: {selectedAnn.likes || 0} من السكان</div>
+              </div>
+              <div className="text-white/80 leading-relaxed text-base whitespace-pre-wrap bg-white/[0.01] p-5 rounded-2xl border border-white/[0.02]">
+                {selectedAnn.content}
+              </div>
+            </div>
+            <div className="p-6 border-t border-white/5 bg-white/[0.01] flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  likeAnnouncement(selectedAnn.id, currentUser?.id || '');
+                  setSelectedAnn(null);
+                }}
+                className="px-6 py-3 bg-[#D4AF37] text-black font-bold rounded-xl hover:bg-[#D4AF37]/80 transition-all flex items-center gap-2"
+              >
+                <ThumbsUp className="w-4 h-4 fill-current" />
+                تأكيد الاطلاع وموافقة
+              </button>
+              <button
+                onClick={() => setSelectedAnn(null)}
+                className="px-5 py-3 bg-white/5 text-white/80 rounded-xl hover:bg-white/10 transition-colors"
+              >
+                إغلاق
+              </button>
             </div>
           </div>
         </div>

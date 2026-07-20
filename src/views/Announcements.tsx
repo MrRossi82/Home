@@ -5,6 +5,8 @@ import {
   Megaphone, Plus, Trash2, Edit2, Check, Eye, Search, Filter, 
   AlertTriangle, Bell, ThumbsUp, X, Sparkles
 } from 'lucide-react';
+import { motion } from 'motion/react';
+import { AnnouncementsGrid } from '../components/AnnouncementsGrid';
 
 export const Announcements: React.FC = () => {
   const { 
@@ -222,98 +224,16 @@ export const Announcements: React.FC = () => {
         </div>
       </div>
 
-      {/* Announcements Table */}
-      <div className="bg-[#161616] rounded-3xl border border-white/5 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-right border-collapse">
-            <thead>
-              <tr className="border-b border-white/5 bg-white/[0.02] text-white/60 text-sm">
-                <th className="p-4 font-semibold">عنوان التعميم</th>
-                <th className="p-4 font-semibold">تاريخ النشر</th>
-                <th className="p-4 font-semibold">مستوى الأهمية</th>
-                <th className="p-4 font-semibold">نسبة الاطلاع والموافقة</th>
-                <th className="p-4 font-semibold text-center">الإجراءات</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredAnnouncements.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="text-center py-12 text-white/40">
-                    <Megaphone className="w-12 h-12 mx-auto mb-3 opacity-20" />
-                    لا توجد تعميمات تطابق البحث حالياً.
-                  </td>
-                </tr>
-              ) : (
-                filteredAnnouncements.map(ann => {
-                  const hasLiked = ann.liked_by?.includes(currentUser?.id || '');
-                  
-                  return (
-                    <tr key={ann.id} className="border-b border-white/5 hover:bg-white/[0.01] transition-colors">
-                      <td className="p-4 font-medium text-white max-w-xs truncate">
-                        {ann.title}
-                      </td>
-                      <td className="p-4 text-white/60 text-sm">
-                        {new Date(ann.created_at).toLocaleDateString('ar-JO')}
-                      </td>
-                      <td className="p-4">
-                        {getPriorityBadge(ann.priority)}
-                      </td>
-                      <td className="p-4 text-sm text-[#D4AF37]">
-                        <div className="flex items-center gap-1.5">
-                          <ThumbsUp className="w-4 h-4 fill-current opacity-80" />
-                          <span>{ann.likes || 0} من السكان</span>
-                        </div>
-                      </td>
-                      <td className="p-4">
-                        <div className="flex items-center justify-center gap-2">
-                          <button
-                            onClick={() => setSelectedAnn(ann)}
-                            className="p-2 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 rounded-xl transition-colors"
-                            title="قراءة التفاصيل"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                          
-                          <button
-                            onClick={() => likeAnnouncement(ann.id, currentUser?.id || '')}
-                            className={`p-2 rounded-xl transition-all ${
-                              hasLiked 
-                                ? 'bg-[#D4AF37] text-black font-semibold' 
-                                : 'bg-white/5 text-white hover:bg-white/10'
-                            }`}
-                            title={hasLiked ? 'تم تأكيد الاطلاع' : 'تأكيد الاطلاع والموافقة'}
-                          >
-                            <Check className="w-4 h-4" />
-                          </button>
-
-                          {isAdmin && (
-                            <>
-                              <button
-                                onClick={() => handleEdit(ann)}
-                                className="p-2 bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20 rounded-xl transition-colors"
-                                title="تعديل التعميم"
-                              >
-                                <Edit2 className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => deleteAnnouncement(ann.id)}
-                                className="p-2 bg-red-500/10 text-red-400 hover:bg-red-500/20 rounded-xl transition-colors"
-                                title="حذف"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      {/* Announcements Grid */}
+      <AnnouncementsGrid 
+        announcements={filteredAnnouncements}
+        onRead={setSelectedAnn}
+        onLike={likeAnnouncement}
+        onEdit={handleEdit}
+        onDelete={deleteAnnouncement}
+        isAdmin={isAdmin}
+        currentUserId={currentUser?.id}
+      />
 
       {/* Announcement Details Modal */}
       {selectedAnn && (

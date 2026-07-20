@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="gold-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F3E5AB" />
+      <stop offset="50%" stop-color="#D4AF37" />
+      <stop offset="100%" stop-color="#AA7C11" />
+    </linearGradient>
+    <radialGradient id="bg-grad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#1E1E1E" />
+      <stop offset="100%" stop-color="#0F0F0F" />
+    </radialGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="100%" height="100%" rx="128" fill="url(#bg-grad)" />
+  <rect width="96%" height="96%" x="2%" y="2%" rx="120" fill="none" stroke="url(#gold-grad)" stroke-width="6" opacity="0.4" />
+  
+  <!-- Icon Graphics - Modern Smart Building Concept -->
+  <g transform="translate(106, 96)">
+    <!-- Main Tower Structure -->
+    <path d="M50 320 L50 140 Q50 120 70 120 L130 120 Q150 120 150 140 L150 320 Z" fill="none" stroke="url(#gold-grad)" stroke-width="12" stroke-linejoin="round" />
+    
+    <!-- Secondary Left Structure -->
+    <path d="M0 320 L0 180 Q0 160 20 160 L60 160" fill="none" stroke="url(#gold-grad)" stroke-width="8" stroke-linejoin="round" opacity="0.8" />
+    
+    <!-- Secondary Right Structure -->
+    <path d="M140 190 L180 190 Q200 190 200 210 L200 320" fill="none" stroke="url(#gold-grad)" stroke-width="8" stroke-linejoin="round" opacity="0.8" />
+    
+    <!-- Base Foundation Line -->
+    <line x1="-30" y1="320" x2="230" y2="320" stroke="url(#gold-grad)" stroke-width="14" stroke-linecap="round" />
+    
+    <!-- Smart Connectivity / Wave Lines (representing IoT / Smart Tech) -->
+    <circle cx="100" cy="50" r="10" fill="url(#gold-grad)" />
+    <path d="M70 70 A 45 45 0 0 1 130 70" fill="none" stroke="url(#gold-grad)" stroke-width="6" stroke-linecap="round" />
+    <path d="M50 90 A 70 70 0 0 1 150 90" fill="none" stroke="url(#gold-grad)" stroke-width="6" stroke-linecap="round" opacity="0.6" />
+    
+    <!-- Windows / Smart Grid Units -->
+    <rect x="75" y="150" width="20" height="20" rx="4" fill="url(#gold-grad)" opacity="0.9" />
+    <rect x="105" y="150" width="20" height="20" rx="4" fill="url(#gold-grad)" opacity="0.9" />
+    
+    <rect x="75" y="190" width="20" height="20" rx="4" fill="url(#gold-grad)" opacity="0.9" />
+    <rect x="105" y="190" width="20" height="20" rx="4" fill="url(#gold-grad)" opacity="0.9" />
+    
+    <rect x="75" y="230" width="20" height="20" rx="4" fill="url(#gold-grad)" opacity="0.9" />
+    <rect x="105" y="230" width="20" height="20" rx="4" fill="url(#gold-grad)" opacity="0.9" />
+    
+    <rect x="75" y="270" width="20" height="20" rx="4" fill="url(#gold-grad)" opacity="0.9" />
+    <rect x="105" y="270" width="20" height="20" rx="4" fill="url(#gold-grad)" opacity="0.9" />
+
+    <!-- Left Building Windows -->
+    <line x1="15" y1="200" x2="35" y2="200" stroke="url(#gold-grad)" stroke-width="6" stroke-linecap="round" opacity="0.7" />
+    <line x1="15" y1="240" x2="35" y2="240" stroke="url(#gold-grad)" stroke-width="6" stroke-linecap="round" opacity="0.7" />
+    <line x1="15" y1="280" x2="35" y2="280" stroke="url(#gold-grad)" stroke-width="6" stroke-linecap="round" opacity="0.7" />
+
+    <!-- Right Building Windows -->
+    <line x1="165" y1="220" x2="185" y2="220" stroke="url(#gold-grad)" stroke-width="6" stroke-linecap="round" opacity="0.7" />
+    <line x1="165" y1="260" x2="185" y2="260" stroke="url(#gold-grad)" stroke-width="6" stroke-linecap="round" opacity="0.7" />
+    <line x1="165" y1="290" x2="185" y2="290" stroke="url(#gold-grad)" stroke-width="6" stroke-linecap="round" opacity="0.7" />
+  </g>
+</svg>
