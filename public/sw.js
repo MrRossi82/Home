@@ -1,9 +1,9 @@
 const CACHE_NAME = 'smart-building-v1';
 const ASSETS_TO_CACHE = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-  '/icon.svg'
+  '/Home/',
+  '/Home/index.html',
+  '/Home/manifest.json',
+  '/Home/icon.svg'
 ];
 
 // Install Event
@@ -81,7 +81,7 @@ self.addEventListener('fetch', (event) => {
       }).catch(() => {
         // Offline fallback if network fails and not in cache
         if (event.request.mode === 'navigate') {
-          return caches.match('/');
+          return caches.match('/Home/');
         }
       });
     })
