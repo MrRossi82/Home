@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { supabase } from '../lib/supabase';
 import { parseIssueDescription, serializeIssueDescription, IssueNote } from '../types';
-import { AlertTriangle, MessageSquare, Paperclip, CheckCircle2, Clock, UserIcon, ShieldAlert, Trash2, Send, MessageCircle, Wrench, ChevronDown, ChevronUp } from 'lucide-react';
+import { AlertTriangle, MessageSquare, Paperclip, CheckCircle2, Clock, UserIcon, ShieldAlert, Trash2, Send, MessageCircle, Wrench, ChevronDown, ChevronUp, X } from 'lucide-react';
 
 interface IssuesProps {
   preselectAdd?: boolean;
@@ -30,6 +30,9 @@ export const Issues: React.FC<IssuesProps> = ({ preselectAdd, setPreselectAdd })
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fullScreenImage, setFullScreenImage] = useState<string | null>(null);
+
+  // States for notes and status changes
 
   // States for notes and status changes
   const [statusChangingIssue, setStatusChangingIssue] = useState<{ issueId: string; nextStatus: 'open' | 'in_progress' | 'resolved' } | null>(null);
@@ -443,11 +446,9 @@ export const Issues: React.FC<IssuesProps> = ({ preselectAdd, setPreselectAdd })
                   {issue.attachments && issue.attachments.length > 0 && (
                     <div className="flex flex-wrap gap-2 mb-4" id={`issue-attachments-${issue.id}`}>
                       {issue.attachments.map((url, idx) => (
-                        <a 
+                        <button 
                           key={idx} 
-                          href={url} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
+                          onClick={() => setFullScreenImage(url)}
                           className="relative w-20 h-20 rounded-lg overflow-hidden border border-white/10 hover:border-white/20 transition-all group cursor-zoom-in"
                         >
                           <img 
@@ -456,7 +457,7 @@ export const Issues: React.FC<IssuesProps> = ({ preselectAdd, setPreselectAdd })
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                             referrerPolicy="no-referrer"
                           />
-                        </a>
+                        </button>
                       ))}
                     </div>
                   )}
@@ -642,6 +643,15 @@ export const Issues: React.FC<IssuesProps> = ({ preselectAdd, setPreselectAdd })
           </div>
         )}
       </div>
+
+      {fullScreenImage && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setFullScreenImage(null)}>
+          <button className="absolute top-4 right-4 text-white p-2 bg-black/50 rounded-full" onClick={() => setFullScreenImage(null)}>
+            <X className="w-8 h-8" />
+          </button>
+          <img src={fullScreenImage} alt="FullScreen" className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
+        </div>
+      )}
 
       {statusChangingIssue && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">

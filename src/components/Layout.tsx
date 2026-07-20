@@ -29,6 +29,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
     { id: 'issues', label: 'الشكاوى والصيانة', icon: AlertTriangle },
     { id: 'meetings', label: 'الاجتماعات واللجان', icon: Calendar },
     { id: 'announcements', label: 'التعميمات والقرارات', icon: Bell },
+    { id: 'tenants', label: 'سكان العمارة', icon: Users },
   ];
 
   const navItems = currentUser?.role === 'admin' ? adminNavItems : tenantNavItems;
@@ -59,7 +60,13 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
           <div className="flex-1 overflow-y-auto py-4">
             <div className="px-4 mb-6">
               <div className="p-3 bg-[#1E1E1E] rounded-xl flex items-center gap-3 border border-white/5">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-[#D4AF37] to-[#F2D06B]"></div>
+                {currentUser?.avatar_url ? (
+                  <img src={currentUser.avatar_url} className="w-10 h-10 rounded-full object-cover" alt="Profile" />
+                ) : (
+                  <div className="w-10 h-10 rounded-full bg-[#1E1E1E] border border-white/10 flex items-center justify-center">
+                    <Users className="w-5 h-5 text-white/40" />
+                  </div>
+                )}
                 <div className="overflow-hidden">
                   <p className="text-sm font-bold text-white truncate">{currentUser?.name}</p>
                   <p className="text-xs text-white/40 mt-0.5">{currentUser?.role === 'admin' ? 'مدير النظام' : 'ساكن وحدة'}</p>

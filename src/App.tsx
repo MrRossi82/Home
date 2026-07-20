@@ -11,6 +11,7 @@ import { Dashboard } from './views/Dashboard';
 import { Financials } from './views/Financials';
 import { Issues } from './views/Issues';
 import { Tenants } from './views/Tenants';
+import { TenantDirectory } from './views/TenantDirectory';
 import { Meetings } from './views/Meetings';
 import { TenantPayments } from './views/TenantPayments';
 import { Announcements } from './views/Announcements';
@@ -99,7 +100,7 @@ const AppContent: React.FC = () => {
           setPreselectAdd={setIssuePreselectAdd}
         />
       )}
-      {activeTab === 'tenants' && currentUser.role === 'admin' && <Tenants />}
+      {activeTab === 'tenants' && (currentUser.role === 'admin' ? <Tenants /> : <TenantDirectory />)}
       {activeTab === 'meetings' && <Meetings />}
       {activeTab === 'announcements' && <Announcements />}
     </Layout>

@@ -187,13 +187,13 @@ export const TenantPayments: React.FC<TenantPaymentsProps> = ({ preselectMonth, 
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-white/80 mb-2">قيمة الاشتراك (تلقائي)</label>
+                <label className="block text-sm font-medium text-white/80 mb-2">قيمة الاشتراك</label>
                 <div className="relative">
                   <input
                     type="number"
                     value={amount}
-                    disabled
-                    className="w-full px-4 py-3 bg-[#1E1E1E]/50 text-white/50 border border-white/10 rounded-xl cursor-not-allowed"
+                    onChange={(e) => setAmount(Number(e.target.value))}
+                    className="w-full px-4 py-3 bg-[#1E1E1E] text-white border border-white/10 rounded-xl focus:ring-[#D4AF37] focus:border-[#D4AF37]"
                   />
                   <span className="absolute left-4 top-3 text-white/40">د.أ</span>
                 </div>

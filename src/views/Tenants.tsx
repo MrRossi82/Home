@@ -133,6 +133,14 @@ export const Tenants: React.FC = () => {
                       <div className="flex items-center gap-3 text-white/80">
                         <Phone className="w-4 h-4 text-[#D4AF37]" />
                         <span className="text-sm" dir="ltr">{tenant.phone}</span>
+                        <a 
+                          href={`https://wa.me/${tenant.phone.replace(/^0/, '962').replace(/[^0-9]/g, '')}`} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-emerald-500 hover:text-emerald-400"
+                        >
+                          واتساب
+                        </a>
                       </div>
                     </div>
                   ) : (
