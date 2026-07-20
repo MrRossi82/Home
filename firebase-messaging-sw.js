@@ -70,17 +70,21 @@ async function initMessaging() {
   // Customize background notifications
   messaging.onBackgroundMessage((payload) => {
     console.log('[firebase-messaging-sw.js] Received background message: ', payload);
-    
+
+    // Use absolute URLs — relative paths break on GitHub Pages subpath /Home/
+    const appOrigin = 'https://mrrossi82.github.io/Home';
+    const iconUrl = `${appOrigin}/icon.svg`;
+
     const notificationTitle = payload.notification?.title || payload.data?.title || 'تنبيه جديد';
     const notificationOptions = {
       body: payload.notification?.body || payload.data?.body || '',
-      icon: payload.notification?.image || payload.data?.image || '/icon.svg',
-      badge: '/icon.svg',
+      icon: payload.notification?.image || payload.data?.image || iconUrl,
+      badge: iconUrl,
       dir: 'rtl',
       lang: 'ar-JO',
       vibrate: [200, 100, 200],
       data: {
-        click_action: payload.data?.click_action || self.location.origin
+        click_action: payload.data?.click_action || `${appOrigin}/`
       }
     };
 
