@@ -2,6 +2,15 @@ import React, { createContext, useContext, useState, useEffect, useMemo, useRef,
 import { supabase } from '../lib/supabase';
 import { Profile, Apartment, Payment, Expense, Issue, Lookup, Meeting, MeetingEvaluation, AppNotification, Announcement, BuildingAsset } from '../types';
 import { sendBrowserNotification } from '../lib/notifications';
+import { 
+  FCMTokenRecord, 
+  getAllRegisteredTokens, 
+  getUserTokens, 
+  registerDeviceTokenInDB, 
+  registerSimulatedDeviceToken, 
+  unregisterDeviceToken, 
+  getOrGenerateCurrentToken 
+} from '../lib/fcm';
 
 interface AppState {
   currentUser: Profile | null;
@@ -19,6 +28,7 @@ interface AppState {
 
 interface AppContextType extends AppState {
   notifications: AppNotification[];
+  fcmTokens: FCMTokenRecord[];
   dismissNotification: (id: string) => void;
   login: (email: string, pass: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -32,6 +42,11 @@ interface AppContextType extends AppState {
   addAnnouncement: (announcement: Partial<Announcement>) => Promise<void>;
   likeAnnouncement: (id: string, userId: string) => Promise<void>;
   deleteAnnouncement: (id: string) => Promise<void>;
+  registerDeviceToken: (customDevice?: string) => Promise<string>;
+  registerSimulatedToken: (userId: string, deviceName: string) => Promise<void>;
+  removeToken: (token: string) => Promise<void>;
+  refreshTokensList: () => Promise<void>;
+  pushNotificationToToken: (token: string, title: string, body: string, type: 'issue' | 'meeting' | 'announcement' | 'payment') => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -94,6 +109,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     isLoading: true
   });
 
+  const [fcmTokens, setFcmTokens] = useState<FCMTokenRecord[]>([]);
+
+  const refreshTokensList = async () => {
+    const tokens = await getAllRegisteredTokens();
+    setFcmTokens(tokens);
+  };
+
   const loadData = async () => {
     if (!supabase) return;
     
@@ -131,6 +153,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         console.warn('Could not load announcements from Supabase, using local fallback:', annFetchErr);
       }
 
+      await refreshTokensList();
+
 
 
       setState(prev => ({
@@ -154,24 +178,33 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   useEffect(() => {
     if (!supabase) {
       setState(prev => ({ ...prev, isLoading: false }));
+      refreshTokensList();
       return;
     }
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
-        fetchCurrentUser(session.user.id);
-        loadData();
+        await fetchCurrentUser(session.user.id);
+        await loadData();
+        // Auto-register current browser FCM token upon login
+        await registerDeviceTokenInDB(session.user.id);
+        await refreshTokensList();
       } else {
         setState(prev => ({ ...prev, isLoading: false }));
+        refreshTokensList();
       }
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (session?.user) {
-        fetchCurrentUser(session.user.id);
-        loadData();
+        await fetchCurrentUser(session.user.id);
+        await loadData();
+        // Auto-register current browser FCM token upon auth change
+        await registerDeviceTokenInDB(session.user.id);
+        await refreshTokensList();
       } else {
         setState(prev => ({ ...prev, currentUser: null }));
+        refreshTokensList();
       }
     });
 
@@ -554,6 +587,24 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } else {
       // 2. Tenant Notifications
       
+      // New announcements in last 7 days
+      announcements.forEach(ann => {
+        const id = `announcement-${ann.id}`;
+        if (!dismissedNotifications.includes(id)) {
+          const createdDate = new Date(ann.created_at);
+          const diffDays = (Date.now() - createdDate.getTime()) / (1000 * 60 * 60 * 24);
+          if (diffDays <= 7) {
+            list.push({
+              id,
+              title: '📢 تعميم جديد من الإدارة',
+              message: `تم نشر تعميم جديد بعنوان "${ann.title}". يرجى قراءة التفاصيل.`,
+              type: 'announcement',
+              created_at: ann.created_at
+            });
+          }
+        }
+      });
+
       // Upcoming meetings in next 24 hours
       meetings.forEach(meeting => {
         if (meeting.status === 'scheduled') {
@@ -600,13 +651,58 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
 
     return list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-  }, [state, dismissedNotifications]);
+  }, [state, dismissedNotifications, announcements]);
+
+  const registerDeviceToken = async (customDevice?: string): Promise<string> => {
+    if (!state.currentUser) return '';
+    const res = await registerDeviceTokenInDB(state.currentUser.id, customDevice);
+    await refreshTokensList();
+    return res.token;
+  };
+
+  const registerSimulatedToken = async (userId: string, deviceName: string) => {
+    await registerSimulatedDeviceToken(userId, deviceName);
+    await refreshTokensList();
+  };
+
+  const removeToken = async (token: string) => {
+    await unregisterDeviceToken(token);
+    await refreshTokensList();
+  };
+
+  const pushNotificationToToken = async (token: string, title: string, body: string, type: 'issue' | 'meeting' | 'announcement' | 'payment') => {
+    const currentDeviceToken = getOrGenerateCurrentToken();
+    if (token === currentDeviceToken) {
+      sendBrowserNotification(title, body, type);
+    }
+    
+    // Find device and user info
+    const deviceRecord = fcmTokens.find(t => t.token === token);
+    const deviceName = deviceRecord ? deviceRecord.device : 'متصفح نشط';
+    const recipientUser = deviceRecord ? state.users.find(u => u.id === deviceRecord.user_id) : null;
+    const recipientName = recipientUser ? recipientUser.name : (state.currentUser?.id === deviceRecord?.user_id ? state.currentUser.name : 'مستخدم العمارة');
+    
+    // Create custom window event for instant visual simulation of push notification arrival in open tabs
+    const event = new CustomEvent('simulated_push_received', {
+      detail: { 
+        token, 
+        title, 
+        body, 
+        type, 
+        deviceName,
+        recipientName,
+        timestamp: new Date().toISOString() 
+      }
+    });
+    window.dispatchEvent(event);
+  };
 
   return (
     <AppContext.Provider value={{ 
       ...state, 
       announcements,
       notifications, 
+      fcmTokens,
       dismissNotification, 
       login, 
       logout, 
@@ -619,7 +715,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       evaluateMeeting,
       addAnnouncement,
       likeAnnouncement,
-      deleteAnnouncement
+      deleteAnnouncement,
+      registerDeviceToken,
+      registerSimulatedToken,
+      removeToken,
+      refreshTokensList,
+      pushNotificationToToken
     }}>
       {children}
     </AppContext.Provider>

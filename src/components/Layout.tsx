@@ -13,6 +13,17 @@ interface LayoutProps {
 export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab }) => {
   const { currentUser, logout, notifications, dismissNotification } = useAppContext();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
+  const [fcmToast, setFcmToast] = React.useState<any | null>(null);
+
+  React.useEffect(() => {
+    const handlePush = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      setFcmToast(detail);
+    };
+
+    window.addEventListener('simulated_push_received', handlePush);
+    return () => window.removeEventListener('simulated_push_received', handlePush);
+  }, []);
 
   const adminNavItems = [
     { id: 'dashboard', label: 'الرئيسية', icon: LayoutDashboard },
@@ -143,6 +154,8 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
                       ? 'bg-blue-500/5 border-blue-500/15 text-blue-200'
                       : notification.type === 'issue'
                       ? 'bg-[#D4AF37]/5 border-[#D4AF37]/15 text-[#D4AF37]'
+                      : notification.type === 'announcement'
+                      ? 'bg-[#D4AF37]/5 border-[#D4AF37]/20 text-white'
                       : 'bg-green-500/5 border-green-500/15 text-green-200'
                   }`}
                 >
@@ -180,6 +193,49 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
           </motion.div>
         </div>
       </main>
+
+      {/* Floating FCM Push Notification simulation toast */}
+      {fcmToast && (
+        <motion.div
+          initial={{ opacity: 0, x: 100, y: 50, scale: 0.9 }}
+          animate={{ opacity: 1, x: 0, y: 0, scale: 1 }}
+          transition={{ type: "spring", stiffness: 300, damping: 25 }}
+          className="fixed bottom-6 right-6 z-50 max-w-sm w-[350px] bg-[#141414] border-2 border-[#D4AF37] rounded-2xl shadow-2xl overflow-hidden text-right"
+        >
+          <div className="bg-[#D4AF37]/10 px-4 py-2 border-b border-[#D4AF37]/20 flex items-center justify-between text-[#D4AF37] font-bold text-xs">
+            <span className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+              قناة إشعارات FCM النشطة (محاكاة حية)
+            </span>
+            <button onClick={() => setFcmToast(null)} className="text-[#D4AF37]/60 hover:text-white cursor-pointer p-0.5">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[9px] text-[#D4AF37] bg-[#D4AF37]/5 px-1.5 py-0.5 rounded border border-[#D4AF37]/10 font-mono">
+                {fcmToast.token.substring(0, 16)}...
+              </span>
+              <span className="text-[10px] text-white/50">
+                الجهاز: <strong className="text-white font-semibold">{fcmToast.deviceName}</strong>
+              </span>
+            </div>
+            
+            <div className="bg-white/[0.02] p-3 rounded-xl border border-white/5 space-y-1">
+              <h4 className="font-bold text-white text-xs flex items-center gap-1.5">
+                <span>🔔</span>
+                {fcmToast.title}
+              </h4>
+              <p className="text-[11px] text-white/70 leading-relaxed pr-5">{fcmToast.body}</p>
+            </div>
+            
+            <div className="text-[9px] text-white/40 flex justify-between items-center pt-2 border-t border-white/5">
+              <span>المستلم: <strong className="text-white/60">{fcmToast.recipientName}</strong></span>
+              <span>نوع الإشعار: {fcmToast.type}</span>
+            </div>
+          </div>
+        </motion.div>
+      )}
     </div>
   );
 };

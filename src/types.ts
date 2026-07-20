@@ -88,7 +88,7 @@ export interface AppNotification {
   id: string;
   title: string;
   message: string;
-  type: 'issue' | 'expense' | 'meeting' | 'rent';
+  type: 'issue' | 'expense' | 'meeting' | 'rent' | 'announcement';
   created_at: string;
 }
 
