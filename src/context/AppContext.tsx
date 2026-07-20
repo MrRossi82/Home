@@ -43,7 +43,7 @@ interface AppContextType extends AppState {
   likeAnnouncement: (id: string, userId: string) => Promise<void>;
   deleteAnnouncement: (id: string) => Promise<void>;
   registerDeviceToken: (customDevice?: string) => Promise<string>;
-  registerSimulatedToken: (userId: string, deviceName: string) => Promise<void>;
+  registerSimulatedToken: (userId: string, deviceName: string, customToken?: string) => Promise<void>;
   removeToken: (token: string) => Promise<void>;
   refreshTokensList: () => Promise<void>;
   pushNotificationToToken: (token: string, title: string, body: string, type: 'issue' | 'meeting' | 'announcement' | 'payment') => Promise<void>;
@@ -660,8 +660,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return res.token;
   };
 
-  const registerSimulatedToken = async (userId: string, deviceName: string) => {
-    await registerSimulatedDeviceToken(userId, deviceName);
+  const registerSimulatedToken = async (userId: string, deviceName: string, customToken?: string) => {
+    await registerSimulatedDeviceToken(userId, deviceName, customToken);
     await refreshTokensList();
   };
 
