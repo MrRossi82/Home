@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
 import { Profile, Apartment, Payment, Expense, Issue, Lookup, Meeting, MeetingEvaluation, AppNotification, Announcement, BuildingAsset } from '../types';
+import { sendBrowserNotification } from '../lib/notifications';
 
 interface AppState {
   currentUser: Profile | null;
@@ -176,6 +177,134 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // Subscribe to real-time changes on Supabase for live push notifications
+  useEffect(() => {
+    if (!supabase || !state.currentUser) return;
+
+    const currentUserId = state.currentUser.id;
+    const userRole = state.currentUser.role;
+
+    console.log('[Realtime] Subscribing to database changes for user:', currentUserId);
+
+    const handlePostgresChanges = (payload: any) => {
+      const { table, eventType, new: newRecord, old: oldRecord } = payload;
+      console.log('[Realtime] Change detected:', table, eventType, payload);
+
+      // Reload the data in state so the app UI is updated in real-time!
+      loadData();
+
+      // Show browser notifications based on table
+      if (table === 'announcements' && eventType === 'INSERT') {
+        sendBrowserNotification(
+          '📢 تعميم جديد من إدارة العمارة',
+          newRecord.title || 'تم نشر تعميم جديد يرجى الاطلاع عليه',
+          'announcement'
+        );
+      } else if (table === 'meetings' && eventType === 'INSERT') {
+        sendBrowserNotification(
+          '📅 اجتماع أو لجنة جديدة مقرر',
+          newRecord.title || 'تمت جدولة اجتماع جديد لسكان العمارة',
+          'meeting'
+        );
+      } else if (table === 'issues') {
+        if (eventType === 'UPDATE' && oldRecord && oldRecord.status !== newRecord.status) {
+          // If the tenant submitted this complaint
+          if (newRecord.reported_by === currentUserId) {
+            const statusLabels: Record<string, string> = {
+              'open': 'مفتوحة',
+              'in_progress': 'قيد المتابعة والعمل',
+              'resolved': 'تم حلها وإغلاقها'
+            };
+            const statusLabel = statusLabels[newRecord.status] || newRecord.status;
+            sendBrowserNotification(
+              '🔧 تحديث على شكواك',
+              `تغيرت حالة الشكوى "${newRecord.title}" إلى: ${statusLabel}`,
+              'issue'
+            );
+          }
+        } else if (eventType === 'INSERT' && userRole === 'admin') {
+          // Admin gets notified of newly filed complaints
+          sendBrowserNotification(
+            '🚨 شكوى جديدة مستلمة',
+            `قام أحد السكان بتقديم شكوى جديدة: "${newRecord.title}"`,
+            'issue'
+          );
+        }
+      } else if (table === 'payments') {
+        if (eventType === 'UPDATE' && oldRecord) {
+          // Check if payment belongs to the current user's apartment
+          const userApartment = state.apartments.find(apt => apt.tenant_id === currentUserId);
+          const isUserPayment = userApartment && userApartment.id === newRecord.apartment_id;
+
+          if (isUserPayment) {
+            if (oldRecord.verification_status !== newRecord.verification_status) {
+              const statusLabels: Record<string, string> = {
+                'pending': 'قيد التدقيق والتحقق',
+                'verified': 'تم قبولها وتأكيد السداد',
+                'rejected': 'مرفوضة (يرجى التحقق مع الإدارة)',
+                'none': 'غير مدفوعة'
+              };
+              const statusLabel = statusLabels[newRecord.verification_status] || newRecord.verification_status;
+              sendBrowserNotification(
+                '💰 تحديث حالة الدفعة',
+                `تم تحديث حالة دفعتك لشهر ${newRecord.month} إلى: ${statusLabel}`,
+                'payment'
+              );
+            } else if (oldRecord.status !== newRecord.status) {
+              const statusLabel = newRecord.status === 'paid' ? 'مدفوعة' : 'غير مدفوعة';
+              sendBrowserNotification(
+                '💰 تحديث حالة الدفعة',
+                `تم تغيير حالة الدفعة لشهر ${newRecord.month} إلى: ${statusLabel}`,
+                'payment'
+              );
+            }
+          }
+        } else if (eventType === 'INSERT' && userRole === 'tenant') {
+          // If a new payment request is inserted for the tenant's apartment
+          const userApartment = state.apartments.find(apt => apt.tenant_id === currentUserId);
+          if (userApartment && userApartment.id === newRecord.apartment_id) {
+            sendBrowserNotification(
+              '📅 دفعة مستحقة جديدة',
+              `تم إصدار دفعة جديدة مستحقة بقيمة ${newRecord.amount} د.أ لشهر ${newRecord.month}`,
+              'payment'
+            );
+          }
+        }
+      }
+    };
+
+    const channel = supabase
+      .channel('smart-building-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'announcements' },
+        handlePostgresChanges
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'meetings' },
+        handlePostgresChanges
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'issues' },
+        handlePostgresChanges
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'payments' },
+        handlePostgresChanges
+      )
+      .subscribe((status) => {
+        console.log('[Realtime] Subscription status:', status);
+      });
+
+    return () => {
+      console.log('[Realtime] Unsubscribing from changes');
+      supabase.removeChannel(channel);
+    };
+  }, [state.currentUser, state.apartments]);
 
   const fetchCurrentUser = async (userId: string) => {
     if (!supabase) return;

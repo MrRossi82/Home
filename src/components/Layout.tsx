@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'motion/react';
 import { Building, LayoutDashboard, Wallet, AlertTriangle, Users, LogOut, Menu, X, Calendar, Bell } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
+import { NotificationSettings } from './NotificationSettings';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -116,6 +117,9 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
             <h1 className="text-xl font-medium text-white mr-4 lg:mr-0">
               {navItems.find(i => i.id === activeTab)?.label}
             </h1>
+          </div>
+          <div className="flex items-center gap-4">
+            <NotificationSettings />
           </div>
         </header>
 
