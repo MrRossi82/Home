@@ -1,0 +1,332 @@
+var __create = Object.create;
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __getProtoOf = Object.getPrototypeOf;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
+  // If the importer is in node compatibility mode or this is not an ESM
+  // file that has been converted to a CommonJS file using a Babel-
+  // compatible transform (i.e. "__esModule" has not been set), then set
+  // "default" to the CommonJS "module.exports" for node compatibility.
+  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
+  mod
+));
+
+// server.ts
+var import_express = __toESM(require("express"), 1);
+var import_path = __toESM(require("path"), 1);
+var import_vite = require("vite");
+var import_supabase_js = require("@supabase/supabase-js");
+var import_node_cron = __toESM(require("node-cron"), 1);
+var import_nodemailer = __toESM(require("nodemailer"), 1);
+var import_firebase_admin = __toESM(require("firebase-admin"), 1);
+var firebaseAdminApp = null;
+function getFirebaseAdmin() {
+  if (firebaseAdminApp) return firebaseAdminApp;
+  const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+  if (serviceAccountJson) {
+    try {
+      const serviceAccount = JSON.parse(serviceAccountJson);
+      firebaseAdminApp = import_firebase_admin.default.initializeApp({
+        credential: import_firebase_admin.default.credential.cert(serviceAccount)
+      }, "push-admin");
+      return firebaseAdminApp;
+    } catch (err) {
+      console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON:", err);
+    }
+  }
+  const projectId = process.env.FIREBASE_PROJECT_ID;
+  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+  const privateKey = process.env.FIREBASE_PRIVATE_KEY;
+  if (projectId && clientEmail && privateKey) {
+    try {
+      firebaseAdminApp = import_firebase_admin.default.initializeApp({
+        credential: import_firebase_admin.default.credential.cert({
+          projectId,
+          clientEmail,
+          privateKey: privateKey.replace(/\\n/g, "\n")
+        })
+      }, "push-admin");
+      return firebaseAdminApp;
+    } catch (err) {
+      console.error("Failed to initialize firebase-admin with separate keys:", err);
+    }
+  }
+  try {
+    const hardcodedServiceAccount = {
+      type: "service_account",
+      project_id: "fazaaapp-84fee",
+      private_key_id: "58858b0b44089fb91c691656b0ecd5d1f3b0c666",
+      private_key: "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDIwtQ7QCvCAXhT\n1J3LnfMLKu3ZtweDxJJGN3KpwufR7wG58ATzYMPDBKiev+YGwWmVZn2iAlBKt+yK\nxXU9PEm5ghq53cxUX8edFb0rlPJLNoZkUQ4A8ByQfXqBuCkoAhR1KvrOBJqUIjeq\nuMsMwTXQ0zKh4zxnQUAxMcURZewkFMN8+CwyJqyZ7pgi0iOlBCqB4dhRJRZ6vAnA\nN12N/2y7fntUPHZQ6SJLIHWZxtIjks+jA6HpWrkE0QlAgjCSeDRltC7KXfCNTY0u\nCg0z1CdInED4hrQDHEHz+oQVhoJjwHt1RLUuxT0Z9wq9Kyd6EZ3kXvIW8mSjPImt\nTFcDQ4OdAgMBAAECggEACtRQ8htC4QBcTHABIl0poZYWEMg/NwaQ+gmpUpVJak5x\nXOV2Fudxgou19COXgGYe0GjKvm+lLh/1ZKzvEeJhJbO/cPw7tpIYveqmHXuM2wLH\ncBIxO7ANZ7vlB6n2n7UGWSWm3sW/zYgk/D1jR+kE1/gJ2KgId5dno4pdk36DJOpY\nquCJaHi4b6UghQ5Iy1SWe7ShJDHfsomGkzoYqp+GPTBgifkJAq7hzoYp6GTORMr8\nBUPCHaCYF70yYgC9aBMAxSGi2W/NuFMKOByjxAbdeQd6azPT3xoESsOBi/JPXur5\nlYMRpwD5TMrwRuWaKSLPXomOHdvEdiGgVCrbjQWe8QKBgQDsoxPK0SBa+X/LYKdo\nOutrrd6O8GiJUGBUhZgURgj4g6aU1+OZyaUP9DqlZzB3RztCh5tPn2yRDw7tqPn2\nDrHv8gxClsi+cFwBC5u/MGYgvpDlls84UmgArxa/YOKqMohvvJGySeBXiF1VlOZM\nrFTQ6mpanxpHGWWPE9UD1GhbBQKBgQDZMD6dABNS9sul/bHC3WoX48d1ZRq/UcjE\n7MBW50ZHE28ox9vZiyXc9tEemFPOPDap/qmf4MGOdrukVWuSHU0m7s4M+eewhEX6\n/cNEzfpUg5QtYosyJUbRrldI0ZF22YLWqosGs+Vky40y6xY6KEVQrLGe3FpX1w1d\nmyeFA3FZuQKBgBXva/dB+WjVdeYpWHtN8uKxZE8Fs/r+i19qXtWKRGyc74Uemgd4\nbKeU8RbCAPkdjj21ik0QLyUnKzAWmM0ZQZ9HZaGKjqMwkSa7p71KRD1GzPGrUBwd\nb2yYzlgBKCG0u3b4GN1ZAcW7a0NyoQJ8ewQ+post8mai0Qo5QWawetftAoGAGjvF\nlFkp/F9rAcW+7vanlfMhaICp1moeggrGwLh2uKcUSiy51XEFRcdaQwPLO6HySF5G\nRtVzC64zxAm9UIzRgN5fbRnSbnPLsCFusKTgk8zA3SqF/aya/UC9skH9/AkR0LQQ\nzuJz1tTvXTMgIC41ESWK3tFm6C1FpATVpS9hRaECgYEAlaNNyX7k7wuWcgyb8fwW\nB0IJAI3S8D84ZwIt4cZANl0g4eEp6fjlUANzrTvlW57fsVEOD0s064IFtg7dwwiz\nmzsxZTTI6N6MHGrHZIYZFZ29iUN+eIgiFKnjeP73TD3eT2XQtfcDZWdNFnOQXyce\nLn3LWWxKxbhBNQU5fP4CsP4=\n-----END PRIVATE KEY-----\n",
+      client_email: "firebase-adminsdk-foya5@fazaaapp-84fee.iam.gserviceaccount.com",
+      client_id: "115725618463350642733",
+      auth_uri: "https://accounts.google.com/o/oauth2/auth",
+      token_uri: "https://oauth2.googleapis.com/token",
+      auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
+      client_x509_cert_url: "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-foya5%40fazaaapp-84fee.iam.gserviceaccount.com"
+    };
+    firebaseAdminApp = import_firebase_admin.default.initializeApp({
+      credential: import_firebase_admin.default.credential.cert(hardcodedServiceAccount)
+    }, "push-admin");
+    console.log("[Push Server] Firebase Admin successfully initialized using the provided service account.");
+    return firebaseAdminApp;
+  } catch (err) {
+    console.error("[Push Server] Failed to initialize firebase-admin using fallback service account:", err);
+  }
+  return null;
+}
+async function startServer() {
+  const app = (0, import_express.default)();
+  app.use(import_express.default.json());
+  const PORT = Number(process.env.PORT) || 3e3;
+  const supabaseUrl = process.env.VITE_SUPABASE_URL;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  let supabaseAdmin = null;
+  if (supabaseUrl && supabaseServiceKey) {
+    supabaseAdmin = (0, import_supabase_js.createClient)(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    });
+  }
+  const transporter = import_nodemailer.default.createTransport({
+    host: process.env.SMTP_HOST || "smtp.gmail.com",
+    port: Number(process.env.SMTP_PORT) || 587,
+    secure: false,
+    // true for 465, false for other ports
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS
+    }
+  });
+  import_node_cron.default.schedule("0 * * * *", async () => {
+    if (!supabaseAdmin) return;
+    try {
+      console.log("Checking for upcoming meetings...");
+      const now = /* @__PURE__ */ new Date();
+      const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1e3);
+      const { data: meetings, error } = await supabaseAdmin.from("meetings").select("*").eq("status", "scheduled").gte("scheduled_at", now.toISOString()).lte("scheduled_at", tomorrow.toISOString());
+      if (error) throw error;
+      if (meetings && meetings.length > 0) {
+        const { data: users } = await supabaseAdmin.auth.admin.listUsers();
+        if (!users || !users.users) return;
+        for (const meeting of meetings) {
+          console.log(`Upcoming meeting found: ${meeting.title}`);
+          for (const user of users.users) {
+            if (!user.email) continue;
+            console.log(`[Email Mock] Sending reminder to ${user.email} for meeting: ${meeting.title}`);
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Error in cron job:", err);
+    }
+  });
+  app.post("/api/push/send", async (req, res) => {
+    const { tokens, title, body, type } = req.body;
+    if (!tokens || !Array.isArray(tokens) || tokens.length === 0) {
+      return res.status(400).json({ error: "Missing recipient tokens." });
+    }
+    console.log(`[Push Server] Request to send push notification to ${tokens.length} devices...`);
+    const messagingApp = getFirebaseAdmin();
+    if (!messagingApp) {
+      console.warn("[Push Server] Firebase Admin is not fully configured on the server. Simulated push completed successfully.");
+      return res.json({
+        success: true,
+        simulated: true,
+        message: "FCM is not fully configured on the server. Simulated delivery completed successfully."
+      });
+    }
+    try {
+      const messaging = messagingApp.messaging();
+      const validTokens = tokens.filter((tok) => tok && tok.trim() !== "");
+      if (validTokens.length === 0) {
+        return res.json({ success: true, message: "No valid tokens to send to." });
+      }
+      const response = await messaging.sendEachForMulticast({
+        tokens: validTokens,
+        notification: {
+          title: title || "\u062A\u0646\u0628\u064A\u0647 \u062C\u062F\u064A\u062F",
+          body: body || ""
+        },
+        data: {
+          type: type || "general",
+          click_action: "/Home/"
+        },
+        android: {
+          priority: "high",
+          notification: {
+            sound: "default"
+          }
+        },
+        webpush: {
+          headers: {
+            Urgency: "high"
+          },
+          notification: {
+            title: title || "\u062A\u0646\u0628\u064A\u0647 \u062C\u062F\u064A\u062F",
+            body: body || "",
+            icon: "/Home/icon.svg",
+            badge: "/Home/icon.svg",
+            dir: "rtl",
+            lang: "ar-JO"
+          },
+          fcmOptions: {
+            link: "/Home/"
+          }
+        }
+      });
+      console.log(`[Push Server] Real FCM Delivery Result:`, response);
+      res.json({
+        success: true,
+        simulated: false,
+        successCount: response.successCount,
+        failureCount: response.failureCount,
+        responses: response.responses
+      });
+    } catch (err) {
+      console.error("[Push Server] Failed to send real FCM push notifications:", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+  app.post("/api/admin/users", async (req, res) => {
+    if (!supabaseAdmin) return res.status(500).json({ error: "Supabase Admin is not configured. Please add SUPABASE_SERVICE_ROLE_KEY." });
+    const { email, password, name, phone, role, apartmentNumber, floor } = req.body;
+    try {
+      const { data, error } = await supabaseAdmin.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true
+      });
+      if (error) throw error;
+      const userId = data.user.id;
+      await supabaseAdmin.from("profiles").insert([
+        { id: userId, name, phone, role }
+      ]);
+      if (apartmentNumber) {
+        const { data: existingApt } = await supabaseAdmin.from("apartments").select("id").eq("number", apartmentNumber).single();
+        if (existingApt) {
+          await supabaseAdmin.from("apartments").update({ tenant_id: userId }).eq("id", existingApt.id);
+        } else {
+          await supabaseAdmin.from("apartments").insert([
+            { number: apartmentNumber, floor, tenant_id: userId }
+          ]);
+        }
+      }
+      res.json({ success: true, user: data.user });
+    } catch (error) {
+      console.error(error);
+      res.status(400).json({ error: error.message });
+    }
+  });
+  app.post("/api/supabase/service-fees-reminder", async (req, res) => {
+    if (!supabaseAdmin) return res.status(500).json({ error: "Supabase Admin is not configured. Please define SUPABASE_SERVICE_ROLE_KEY." });
+    try {
+      console.log("Running service fee reminder notification...");
+      const currentMonthStr = (/* @__PURE__ */ new Date()).toLocaleString("en-US", { month: "long" });
+      const { data: profiles, error: profError } = await supabaseAdmin.from("profiles").select("*").eq("role", "tenant");
+      if (profError) throw profError;
+      const { data: payments, error: payError } = await supabaseAdmin.from("payments").select("*").eq("payment_month", currentMonthStr).eq("verification_status", "verified");
+      if (payError) throw payError;
+      const paidTenantIds = new Set(payments?.map((p) => p.tenant_id) || []);
+      const unpaidTenants = profiles?.filter((p) => !paidTenantIds.has(p.id)) || [];
+      console.log(`Found ${unpaidTenants.length} tenants with unpaid service fees for ${currentMonthStr}`);
+      const sentEmails = [];
+      for (const tenant of unpaidTenants) {
+        const { data: authUserData, error: authError } = await supabaseAdmin.auth.admin.getUserById(tenant.id);
+        if (authError || !authUserData || !authUserData.user || !authUserData.user.email) {
+          console.warn(`Could not get email for tenant: ${tenant.name}`);
+          continue;
+        }
+        const email = authUserData.user.email;
+        console.log(`[Edge Function Email] Sending service fee reminder to ${email} for ${currentMonthStr}`);
+        if (process.env.SMTP_USER) {
+          try {
+            await transporter.sendMail({
+              from: process.env.SMTP_USER,
+              to: email,
+              subject: `\u062A\u0630\u0643\u064A\u0631: \u0627\u0633\u062A\u062D\u0642\u0627\u0642 \u0631\u0633\u0648\u0645 \u0627\u0644\u062E\u062F\u0645\u0627\u062A \u0644\u0634\u0647\u0631 ${currentMonthStr}`,
+              text: `\u0645\u0631\u062D\u0628\u0627\u064B ${tenant.name}\u060C
+
+\u0646\u0648\u062F \u062A\u0630\u0643\u064A\u0631\u0643\u0645 \u0628\u0645\u0648\u0639\u062F \u062F\u0641\u0639 \u0631\u0633\u0648\u0645 \u0627\u0644\u062E\u062F\u0645\u0627\u062A \u0644\u0634\u0647\u0631 ${currentMonthStr}.
+
+\u0627\u0644\u0631\u062C\u0627\u0621 \u0627\u0644\u0633\u062F\u0627\u062F \u0645\u0646 \u062E\u0644\u0627\u0644 \u0644\u0648\u062D\u0629 \u0627\u0644\u062A\u062D\u0643\u0645 \u0627\u0644\u062E\u0627\u0635\u0629 \u0628\u0643\u0645 \u0644\u062A\u062C\u0646\u0628 \u062A\u0631\u0627\u0643\u0645 \u0627\u0644\u0645\u0628\u0627\u0644\u063A.
+
+\u0645\u0639 \u062A\u062D\u064A\u0627\u062A \u0625\u062F\u0627\u0631\u0629 \u0627\u0644\u0639\u0645\u0627\u0631\u0629.`
+            });
+            sentEmails.push(email);
+          } catch (mailErr) {
+            console.error(`Failed to send email to ${email}:`, mailErr);
+          }
+        } else {
+          sentEmails.push(`${email} (Simulated)`);
+        }
+      }
+      res.json({ success: true, message: `Sent reminders to ${unpaidTenants.length} tenants.`, emails: sentEmails });
+    } catch (err) {
+      console.error("Error sending service fee reminders:", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+  import_node_cron.default.schedule("0 9 * * *", async () => {
+    console.log("Automatically checking service fee due dates...");
+    try {
+      if (!supabaseAdmin) return;
+      const currentMonthStr = (/* @__PURE__ */ new Date()).toLocaleString("en-US", { month: "long" });
+      const { data: profiles } = await supabaseAdmin.from("profiles").select("*").eq("role", "tenant");
+      const { data: payments } = await supabaseAdmin.from("payments").select("*").eq("payment_month", currentMonthStr).eq("verification_status", "verified");
+      if (!profiles || !payments) return;
+      const paidTenantIds = new Set(payments.map((p) => p.tenant_id));
+      const unpaidTenants = profiles.filter((p) => !paidTenantIds.has(p.id));
+      for (const tenant of unpaidTenants) {
+        const { data: authUserData } = await supabaseAdmin.auth.admin.getUserById(tenant.id);
+        if (authUserData && authUserData.user && authUserData.user.email) {
+          const email = authUserData.user.email;
+          console.log(`[Cron Auto-Alert] Sending service fee reminder to ${email}`);
+          if (process.env.SMTP_USER) {
+            await transporter.sendMail({
+              from: process.env.SMTP_USER,
+              to: email,
+              subject: `\u062A\u0630\u0643\u064A\u0631 \u062A\u0644\u0642\u0627\u0626\u064A: \u0627\u0633\u062A\u062D\u0642\u0627\u0642 \u0631\u0633\u0648\u0645 \u0627\u0644\u062E\u062F\u0645\u0627\u062A \u0644\u0634\u0647\u0631 ${currentMonthStr}`,
+              text: `\u0645\u0631\u062D\u0628\u0627\u064B ${tenant.name}\u060C
+
+\u064A\u0631\u062C\u0649 \u0627\u0644\u0639\u0644\u0645 \u0628\u0623\u0646 \u0627\u0644\u0627\u0634\u062A\u0631\u0627\u0643 \u0627\u0644\u0634\u0647\u0631\u064A \u0644\u0634\u0647\u0631 ${currentMonthStr} \u0645\u0633\u062A\u062D\u0642 \u0627\u0644\u0633\u062F\u0627\u062F.
+
+\u062A\u0641\u0636\u0644\u0648\u0627 \u0628\u0642\u0628\u0648\u0644 \u0627\u0644\u0627\u062D\u062A\u0631\u0627\u0645.`
+            });
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Error in daily service fee reminder cron job:", err);
+    }
+  });
+  if (process.env.NODE_ENV !== "production") {
+    const vite = await (0, import_vite.createServer)({
+      server: { middlewareMode: true },
+      appType: "spa"
+    });
+    app.use(vite.middlewares);
+  } else {
+    const distPath = import_path.default.join(process.cwd(), "dist");
+    app.use(import_express.default.static(distPath));
+    app.get("*", (req, res) => {
+      res.sendFile(import_path.default.join(distPath, "index.html"));
+    });
+  }
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}
+startServer();
+//# sourceMappingURL=server.cjs.map
