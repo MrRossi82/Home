@@ -64,7 +64,7 @@ export const NotificationSettings: React.FC = () => {
           } else {
             // Register it if not registered
             setSwStatus('registering');
-            const reg = await navigator.serviceWorker.register('/Home/firebase-messaging-sw.js', { scope: '/Home/' });
+            const reg = await navigator.serviceWorker.register('/firebase-messaging-sw.js', { scope: '/' });
             setSwStatus('active');
             setApiLogs(prev => [`[النظام] 🔄 تم العثور على Service Worker وتسجيله بنطاق: ${reg.scope}`, ...prev]);
           }

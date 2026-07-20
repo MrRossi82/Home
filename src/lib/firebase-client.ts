@@ -91,8 +91,8 @@ export const requestFCMToken = async (userId: string, customConfig?: FirebaseCon
 
     console.log('Registering with Service Worker...');
     // Register background service worker
-    const registration = await navigator.serviceWorker.register('/Home/firebase-messaging-sw.js', {
-      scope: '/Home/'
+    const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
+      scope: '/'
     });
     
     console.log('Service Worker registered successfully with scope:', registration.scope);

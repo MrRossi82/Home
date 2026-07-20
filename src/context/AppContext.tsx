@@ -417,13 +417,61 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const { error } = await supabase.from('issues').insert([issue]);
     if (error) console.error(error);
     await loadData();
+
+    // Send push notification to administrators about the new complaint
+    try {
+      const freshTokens = await getAllRegisteredTokens();
+      const admins = state.users.filter(u => u.role === 'admin');
+      for (const admin of admins) {
+        const adminTokens = freshTokens.filter(t => t.user_id === admin.id);
+        for (const t of adminTokens) {
+          await pushNotificationToToken(
+            t.token,
+            '🚨 شكوى جديدة مستلمة',
+            `قام أحد السكان بتقديم شكوى جديدة: "${issue.title || 'بدون عنوان'}"`,
+            'issue'
+          );
+        }
+      }
+    } catch (pushErr) {
+      console.error('Failed to dispatch addIssue push notification:', pushErr);
+    }
   };
 
   const updateIssue = async (id: string, updates: Partial<Issue>) => {
     if (!supabase) return;
     const { error } = await supabase.from('issues').update(updates).eq('id', id);
     if (error) console.error(error);
+    
+    // Find the reporter from the existing issues state before reloading
+    const targetIssue = state.issues.find(i => i.id === id);
+    
     await loadData();
+
+    // Send push notification to the reporter about the update
+    if (targetIssue && targetIssue.reported_by) {
+      try {
+        const statusLabels: Record<string, string> = {
+          'open': 'مفتوحة',
+          'in_progress': 'قيد المتابعة والعمل',
+          'resolved': 'تم حلها وإغلاقها'
+        };
+        const statusLabel = updates.status ? (statusLabels[updates.status] || updates.status) : 'قيد العمل';
+        
+        const freshTokens = await getAllRegisteredTokens();
+        const reporterTokens = freshTokens.filter(t => t.user_id === targetIssue.reported_by);
+        for (const t of reporterTokens) {
+          await pushNotificationToToken(
+            t.token,
+            '🔧 تحديث على شكواك',
+            `تغيرت حالة الشكوى "${updates.title || targetIssue.title}" إلى: ${statusLabel}`,
+            'issue'
+          );
+        }
+      } catch (pushErr) {
+        console.error('Failed to dispatch updateIssue push notification:', pushErr);
+      }
+    }
   };
 
   const addMeeting = async (meeting: Partial<Meeting>) => {
@@ -481,6 +529,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       try {
         await supabase.from('announcements').insert([newAnn]);
         await loadData();
+
+        // Dispatch Firebase Push Notification to ALL registered tokens of all users
+        try {
+          const freshTokens = await getAllRegisteredTokens();
+          for (const t of freshTokens) {
+            await pushNotificationToToken(
+              t.token,
+              '📢 تعميم جديد من إدارة العمارة',
+              newAnn.title || 'تم نشر تعميم جديد يرجى الاطلاع عليه',
+              'announcement'
+            );
+          }
+        } catch (pushErr) {
+          console.error('Failed to dispatch announcement push notification:', pushErr);
+        }
       } catch (err) {
         console.error('Error inserting announcement into Supabase:', err);
       }
