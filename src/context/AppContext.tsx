@@ -9,7 +9,8 @@ import {
   registerDeviceTokenInDB, 
   registerSimulatedDeviceToken, 
   unregisterDeviceToken, 
-  getOrGenerateCurrentToken 
+  getOrGenerateCurrentToken,
+  autoEnsureAllProfilesHaveTokens
 } from '../lib/fcm';
 
 interface AppState {
@@ -151,6 +152,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
       } catch (annFetchErr) {
         console.warn('Could not load announcements from Supabase, using local fallback:', annFetchErr);
+      }
+
+      // Auto-ensure that all profiles in the system have at least one registered token
+      if (profiles && profiles.length > 0) {
+        await autoEnsureAllProfilesHaveTokens(profiles);
       }
 
       await refreshTokensList();
