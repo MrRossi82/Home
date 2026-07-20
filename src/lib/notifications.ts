@@ -30,6 +30,13 @@ export const sendBrowserNotification = async (title: string, body: string, type:
   // Get localized icon/badge color or standard icons
   const icon = '/icon.svg';
 
+  // Map notification type to destination tab
+  let targetTab = 'dashboard';
+  if (type === 'issue') targetTab = 'issues';
+  else if (type === 'meeting') targetTab = 'meetings';
+  else if (type === 'announcement') targetTab = 'announcements';
+  else if (type === 'payment') targetTab = 'payments';
+
   // Try to use Service Worker registration for better background/PWA support
   if ('serviceWorker' in navigator) {
     try {
@@ -44,7 +51,8 @@ export const sendBrowserNotification = async (title: string, body: string, type:
           tag: `smart-bldg-${type}-${Date.now()}`,
           vibrate: [100, 50, 100],
           data: {
-            url: window.location.origin
+            url: window.location.origin,
+            tab: targetTab
           }
         } as any);
         return;

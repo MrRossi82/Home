@@ -87,3 +87,39 @@ self.addEventListener('fetch', (event) => {
     })
   );
 });
+
+// Notification Click Event
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+
+  // Retrieve custom payload
+  const notificationData = event.notification.data || {};
+  const targetTab = notificationData.tab || 'dashboard';
+  const baseUrl = notificationData.url || self.registration.scope || '/';
+  const targetUrl = `${baseUrl}?tab=${targetTab}`;
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      // If there's an open window, focus it and tell it to navigate
+      for (const client of clientList) {
+        const clientUrl = new URL(client.url);
+        // Check if client is on the same app scope
+        if ('focus' in client) {
+          client.focus();
+          if ('postMessage' in client) {
+            client.postMessage({
+              type: 'NAVIGATE_TO_TAB',
+              tab: targetTab
+            });
+          }
+          return;
+        }
+      }
+      
+      // If no window is open, open a new one with the tab query parameter
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(targetUrl);
+      }
+    })
+  );
+});
