@@ -16,7 +16,7 @@ const supabase = createClient(supabaseUrl, supabaseKey, {
 });
 
 async function seedAdmin() {
-  console.log("Creating admin user...");
+  console.log("Creating admin user.....");
   const { data, error } = await supabase.auth.admin.createUser({
     email: 'ahmadrahahleh091@gmail.com',
     password: 'Rossi90900$$',
