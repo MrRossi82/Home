@@ -216,17 +216,35 @@ export const NotificationSettings: React.FC = () => {
       logs.push(`Authorization: Bearer [OAuth2 Access Token generated server-side]`);
 
       // Dispatch notifications
+      let isAnySimulated = false;
       for (const token of targetTokens) {
         const deviceRec = fcmTokens.find(t => t.token === token);
         const devName = deviceRec ? deviceRec.device : 'جهاز نشط';
-        logs.push(`✔ [HTTP 200] تم التسليم بنجاح لخوادم Google FCM لتسليمه للجهاز: ${devName}`);
         
-        // Bubble actual alert in browser
-        await pushNotificationToToken(token, pushTitle, pushBody, pushType);
+        // Bubble actual alert in browser and call server push API
+        const responseData = await pushNotificationToToken(token, pushTitle, pushBody, pushType);
+        
+        if (responseData && responseData.simulated) {
+          isAnySimulated = true;
+          logs.push(`ℹ [محاكاة] تم التسليم بنجاح للجهاز: ${devName} (بانتظار ضبط مفاتيح خادم FCM الفعلي)`);
+        } else {
+          logs.push(`✔ [HTTP 200] تم التسليم الفعلي عبر Google FCM للجهاز: ${devName}`);
+        }
       }
 
-      logs.push(`🎉 اكتملت عملية الإرسال بنجاح! تم تسليم التنبيهات المباشرة ونظام التشغيل استقبلها بنجاح لـ ${targetTokens.length} أجهزة.`);
-      setSendResult({ success: true, message: `تم إرسال الإشعار المباشر بنجاح واستقبلته الأجهزة المستهدفة (${targetTokens.length}) عبر خوادم Google FCM الحقيقية!` });
+      if (isAnySimulated) {
+        logs.push(`🎉 اكتملت عملية الإرسال بنظام المحاكاة التفاعلية! لجعله يعمل فعلياً للهواتف المغلقة، يرجى تزويد مفتاح الخدمة FIREBASE_SERVICE_ACCOUNT_JSON في الإعدادات.`);
+        setSendResult({ 
+          success: true, 
+          message: `تم إرسال الإشعار بنظام المحاكاة التفاعلية لـ (${targetTokens.length}) أجهزة. لتشغيل الإرسال الحقيقي حتى لو كان الهاتف مغلقاً، يرجى إضافة مفتاح الخدمة (Firebase Service Account Key) في إعدادات البيئة (Environment variables).` 
+        });
+      } else {
+        logs.push(`🎉 اكتملت عملية الإرسال الفعلي بنجاح! استقبلت الأجهزة المستهدفة (${targetTokens.length}) التنبيهات بنجاح.`);
+        setSendResult({ 
+          success: true, 
+          message: `تم إرسال الإشعار المباشر بنجاح واستقبلته الأجهزة المستهدفة (${targetTokens.length}) عبر خوادم Google FCM الحقيقية!` 
+        });
+      }
     } catch (err: any) {
       logs.push(`❌ فشل الاتصال بخوادم الإرسال: ${err.message || err}`);
       setSendResult({ success: false, message: `فشل الإرسال: ${err.message || 'حدث خطأ غير متوقع أثناء الاتصال بخوادم Google FCM.'}` });

@@ -112,15 +112,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const [fcmTokens, setFcmTokens] = useState<FCMTokenRecord[]>([]);
 
+  // Refs for tracking known items for background polling real-time synchronization fallback
+  const knownAnnouncementIdsRef = useRef<Set<string>>(new Set());
+  const knownIssueStatusesRef = useRef<Map<string, string>>(new Map());
+
   const refreshTokensList = async () => {
     const tokens = await getAllRegisteredTokens();
     setFcmTokens(tokens);
   };
 
-  const loadData = async () => {
+  const loadData = async (silent = false) => {
     if (!supabase) return;
     
-    setState(prev => ({ ...prev, isLoading: true }));
+    if (!silent) {
+      setState(prev => ({ ...prev, isLoading: true }));
+    }
     
     try {
       const [
@@ -149,9 +155,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (annDb && annDb.length > 0) {
           setAnnouncements(annDb as any);
           localStorage.setItem('building_announcements', JSON.stringify(annDb));
+
+          // Initialize known announcement IDs baseline
+          if (knownAnnouncementIdsRef.current.size === 0) {
+            annDb.forEach(ann => knownAnnouncementIdsRef.current.add(ann.id));
+          }
         }
       } catch (annFetchErr) {
         console.warn('Could not load announcements from Supabase, using local fallback:', annFetchErr);
+      }
+
+      // Initialize known issue statuses baseline
+      if (knownIssueStatusesRef.current.size === 0 && issues && issues.length > 0) {
+        issues.forEach(issue => knownIssueStatusesRef.current.set(issue.id, issue.status));
       }
 
       // Auto-ensure that all profiles in the system have at least one registered token
@@ -232,109 +248,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     console.log('[Realtime] Subscribing to database changes for user:', currentUserId);
 
-    const handlePostgresChanges = (payload: any) => {
-      const { table, eventType, new: newRecord, old: oldRecord } = payload;
+    const handlePostgresChanges = async (payload: any) => {
+      const { table, eventType, new: newRecord } = payload;
       console.log('[Realtime] Change detected:', table, eventType, payload);
 
-      // Access latest state safely from our Ref BEFORE database reload updates it
-      const currentState = stateRef.current;
+      // Reload the data in state silently so the app UI is updated in real-time!
+      loadData(true);
 
-      // Reload the data in state so the app UI is updated in real-time!
-      loadData();
-
-      // Show browser notifications based on table
       if (table === 'announcements' && eventType === 'INSERT') {
-        sendBrowserNotification(
-          '📢 تعميم جديد من إدارة العمارة',
-          newRecord.title || 'تم نشر تعميم جديد يرجى الاطلاع عليه',
-          'announcement'
-        );
-      } else if (table === 'meetings' && eventType === 'INSERT') {
-        sendBrowserNotification(
-          '📅 اجتماع أو لجنة جديدة مقرر',
-          newRecord.title || 'تمت جدولة اجتماع جديد لسكان العمارة',
-          'meeting'
-        );
+        knownAnnouncementIdsRef.current.add(newRecord.id);
       } else if (table === 'issues') {
-        if (eventType === 'UPDATE') {
-          // Compare with locally stored issue state before loadData completes
-          const existingIssue = currentState.issues.find(i => i.id === newRecord.id);
-          const oldStatus = existingIssue ? existingIssue.status : (oldRecord ? oldRecord.status : undefined);
-
-          // Only notify if status has actually changed!
-          if (oldStatus !== newRecord.status) {
-            // Check if the current user is the owner of this complaint
-            // Also fallback to check if user's apartment matches the issue's apartment
-            const userApartment = currentState.apartments.find(apt => apt.tenant_id === currentUserId);
-            const isUserIssue = newRecord.reported_by === currentUserId || 
-                                (userApartment && userApartment.id === newRecord.apartment_id);
-
-            if (isUserIssue) {
-              const statusLabels: Record<string, string> = {
-                'open': 'مفتوحة',
-                'in_progress': 'قيد المتابعة والعمل',
-                'resolved': 'تم حلها وإغلاقها'
-              };
-              const statusLabel = statusLabels[newRecord.status] || newRecord.status;
-              sendBrowserNotification(
-                '🔧 تحديث على شكواك',
-                `تغيرت حالة الشكوى "${newRecord.title}" إلى: ${statusLabel}`,
-                'issue'
-              );
-            }
-          }
-        } else if (eventType === 'INSERT' && userRole === 'admin') {
-          // Admin gets notified of newly filed complaints
-          sendBrowserNotification(
-            '🚨 شكوى جديدة مستلمة',
-            `قام أحد السكان بتقديم شكوى جديدة: "${newRecord.title}"`,
-            'issue'
-          );
-        }
-      } else if (table === 'payments') {
-        if (eventType === 'UPDATE') {
-          // Check if payment belongs to the current user's apartment
-          const userApartment = currentState.apartments.find(apt => apt.tenant_id === currentUserId);
-          const isUserPayment = userApartment && userApartment.id === newRecord.apartment_id;
-
-          if (isUserPayment) {
-            const existingPayment = currentState.payments.find(p => p.id === newRecord.id);
-            const oldVerificationStatus = existingPayment ? existingPayment.verification_status : (oldRecord ? oldRecord.verification_status : undefined);
-            const oldStatus = existingPayment ? existingPayment.status : (oldRecord ? oldRecord.status : undefined);
-
-            if (oldVerificationStatus !== newRecord.verification_status) {
-              const statusLabels: Record<string, string> = {
-                'pending': 'قيد التدقيق والتحقق',
-                'verified': 'تم قبولها وتأكيد السداد',
-                'rejected': 'مرفوضة (يرجى التحقق مع الإدارة)',
-                'none': 'غير مدفوعة'
-              };
-              const statusLabel = statusLabels[newRecord.verification_status] || newRecord.verification_status;
-              sendBrowserNotification(
-                '💰 تحديث حالة الدفعة',
-                `تم تحديث حالة دفعتك لشهر ${newRecord.month} إلى: ${statusLabel}`,
-                'payment'
-              );
-            } else if (oldStatus !== newRecord.status) {
-              const statusLabel = newRecord.status === 'paid' ? 'مدفوعة' : 'غير مدفوعة';
-              sendBrowserNotification(
-                '💰 تحديث حالة الدفعة',
-                `تم تغيير حالة الدفعة لشهر ${newRecord.month} إلى: ${statusLabel}`,
-                'payment'
-              );
-            }
-          }
-        } else if (eventType === 'INSERT' && userRole === 'tenant') {
-          // If a new payment request is inserted for the tenant's apartment
-          const userApartment = currentState.apartments.find(apt => apt.tenant_id === currentUserId);
-          if (userApartment && userApartment.id === newRecord.apartment_id) {
-            sendBrowserNotification(
-              '📅 دفعة مستحقة جديدة',
-              `تم إصدار دفعة جديدة مستحقة بقيمة ${newRecord.amount} د.أ لشهر ${newRecord.month}`,
-              'payment'
-            );
-          }
-        }
+        knownIssueStatusesRef.current.set(newRecord.id, newRecord.status);
       }
     };
 
@@ -370,6 +294,108 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
   }, [state.currentUser?.id, state.currentUser?.role]);
 
+  // Dual Fallback: Silent background polling interval every 8 seconds
+  // This guarantees push notification delivery even if Supabase Realtime replication is disabled.
+  useEffect(() => {
+    if (!supabase || !state.currentUser) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const currentUserId = state.currentUser?.id;
+        const userRole = state.currentUser?.role;
+        if (!currentUserId) return;
+
+        const currentToken = getOrGenerateCurrentToken();
+
+        // 1. Fetch latest announcements
+        const { data: freshAnns } = await supabase
+          .from('announcements')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(5);
+
+        if (freshAnns) {
+          let hasNewAnn = false;
+          for (const ann of freshAnns) {
+            if (!knownAnnouncementIdsRef.current.has(ann.id)) {
+              knownAnnouncementIdsRef.current.add(ann.id);
+              hasNewAnn = true;
+
+              // Only notify if recent (within last 3 minutes) to avoid historic clutter
+              const isRecent = (Date.now() - new Date(ann.created_at).getTime()) < 180000;
+              if (isRecent) {
+                await pushNotificationToToken(
+                  currentToken,
+                  '📢 تعميم جديد من إدارة العمارة',
+                  ann.title || 'تم نشر تعميم جديد يرجى الاطلاع عليه',
+                  'announcement'
+                );
+              }
+            }
+          }
+          if (hasNewAnn) {
+            setAnnouncements(freshAnns as any);
+            localStorage.setItem('building_announcements', JSON.stringify(freshAnns));
+          }
+        }
+
+        // 2. Fetch latest issues
+        const { data: freshIssues } = await supabase
+          .from('issues')
+          .select('*, type:type_id(*), reporter:reported_by(*), apartment:apartment_id(*)');
+
+        if (freshIssues) {
+          let stateUpdated = false;
+          for (const issue of freshIssues) {
+            const prevStatus = knownIssueStatusesRef.current.get(issue.id);
+
+            if (prevStatus === undefined) {
+              knownIssueStatusesRef.current.set(issue.id, issue.status);
+              stateUpdated = true;
+
+              const isRecent = (Date.now() - new Date(issue.created_at).getTime()) < 180000;
+              if (isRecent && userRole === 'admin') {
+                await pushNotificationToToken(
+                  currentToken,
+                  '🚨 شكوى جديدة مستلمة',
+                  `قام أحد السكان بتقديم شكوى جديدة: "${issue.title}"`,
+                  'issue'
+                );
+              }
+            } else if (prevStatus !== issue.status) {
+              knownIssueStatusesRef.current.set(issue.id, issue.status);
+              stateUpdated = true;
+
+              // Check if payment/apartment matches user's complaints
+              const isUserIssue = issue.reported_by === currentUserId;
+              if (isUserIssue) {
+                const statusLabels: Record<string, string> = {
+                  'open': 'مفتوحة',
+                  'in_progress': 'قيد المتابعة والعمل',
+                  'resolved': 'تم حلها وإغلاقها'
+                };
+                const statusLabel = statusLabels[issue.status] || issue.status;
+                await pushNotificationToToken(
+                  currentToken,
+                  '🔧 تحديث على شكواك',
+                  `تغيرت حالة الشكوى "${issue.title}" إلى: ${statusLabel}`,
+                  'issue'
+                );
+              }
+            }
+          }
+          if (stateUpdated) {
+            setState(prev => ({ ...prev, issues: freshIssues }));
+          }
+        }
+      } catch (err) {
+        console.warn('[Sync Error]', err);
+      }
+    }, 8000);
+
+    return () => clearInterval(interval);
+  }, [state.currentUser?.id, state.currentUser?.role]);
+
   const fetchCurrentUser = async (userId: string) => {
     if (!supabase) return;
     const { data } = await supabase.from('profiles').select('*').eq('id', userId).single();
@@ -392,23 +418,77 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const addPayment = async (payment: Partial<Payment>) => {
     if (!supabase) return;
     
+    // Find the apartment tenant to notify them
+    const { data: apt } = await supabase.from('apartments').select('tenant_id').eq('id', payment.apartment_id).single();
+    const tenantId = apt?.tenant_id;
+
     const { data: existingPayment } = await supabase.from('payments')
         .select('*')
         .eq('apartment_id', payment.apartment_id)
         .eq('month', payment.month)
         .single();
 
+    let isNew = false;
+    let isStatusChanged = false;
+    let isVerificationChanged = false;
+
     if (existingPayment) {
         // update
+        isStatusChanged = existingPayment.status !== payment.status;
+        isVerificationChanged = existingPayment.verification_status !== payment.verification_status;
         const { error } = await supabase.from('payments')
             .update(payment)
             .eq('id', existingPayment.id);
         if (error) console.error(error);
     } else {
+        isNew = true;
         const { error } = await supabase.from('payments').insert([payment]);
         if (error) console.error(error);
     }
     await loadData();
+
+    // Send push notification to the tenant
+    if (tenantId) {
+      try {
+        const freshTokens = await getAllRegisteredTokens();
+        const tenantTokens = freshTokens.filter(t => t.user_id === tenantId);
+        
+        for (const t of tenantTokens) {
+          if (isNew) {
+            await pushNotificationToToken(
+              t.token,
+              '💰 دفعة مستحقة جديدة',
+              `تم إصدار دفعة جديدة مستحقة بقيمة ${payment.amount || 10} د.أ لشهر ${payment.month}`,
+              'payment'
+            );
+          } else if (isVerificationChanged && payment.verification_status) {
+            const statusLabels: Record<string, string> = {
+              'pending': 'قيد التدقيق والتحقق',
+              'verified': 'تم قبولها وتأكيد السداد',
+              'rejected': 'مرفوضة (يرجى التحقق مع الإدارة)',
+              'none': 'غير مدفوعة'
+            };
+            const statusLabel = statusLabels[payment.verification_status] || payment.verification_status;
+            await pushNotificationToToken(
+              t.token,
+              '💰 تحديث حالة الدفعة',
+              `تم تحديث حالة دفعتك لشهر ${payment.month} إلى: ${statusLabel}`,
+              'payment'
+            );
+          } else if (isStatusChanged && payment.status) {
+            const statusLabel = payment.status === 'paid' ? 'مدفوعة' : 'غير مدفوعة';
+            await pushNotificationToToken(
+              t.token,
+              '💰 تحديث حالة الدفعة',
+              `تم تغيير حالة الدفعة لشهر ${payment.month} إلى: ${statusLabel}`,
+              'payment'
+            );
+          }
+        }
+      } catch (pushErr) {
+        console.error('Failed to dispatch payment push notification:', pushErr);
+      }
+    }
   };
 
   const addExpense = async (expense: Partial<Expense>) => {
@@ -485,6 +565,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const { error } = await supabase.from('meetings').insert([meeting]);
     if (error) console.error(error);
     await loadData();
+
+    // Send push notification to ALL tenants/users about the meeting
+    try {
+      const freshTokens = await getAllRegisteredTokens();
+      for (const t of freshTokens) {
+        await pushNotificationToToken(
+          t.token,
+          '📅 اجتماع أو لجنة جديدة مقرر',
+          meeting.title || 'تمت جدولة اجتماع جديد لسكان العمارة',
+          'meeting'
+        );
+      }
+    } catch (pushErr) {
+      console.error('Failed to dispatch meeting push notification:', pushErr);
+    }
   };
 
   const updateMeeting = async (id: string, updates: Partial<Meeting>) => {
@@ -745,6 +840,27 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       sendBrowserNotification(title, body, type);
     }
     
+    let result = { success: true, simulated: true, message: "Local fallback" };
+    
+    // Send actual HTTP POST request to backend to send real Google FCM notification
+    try {
+      const response = await fetch('/api/push/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tokens: [token],
+          title,
+          body,
+          type
+        })
+      });
+      const data = await response.json();
+      console.log('[FCM Backend Push Response]', data);
+      result = data;
+    } catch (err) {
+      console.warn('[FCM Backend Push Error]', err);
+    }
+    
     // Find device and user info
     const deviceRecord = fcmTokens.find(t => t.token === token);
     const deviceName = deviceRecord ? deviceRecord.device : 'متصفح نشط';
@@ -764,6 +880,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
     });
     window.dispatchEvent(event);
+    
+    return result;
   };
 
   return (
