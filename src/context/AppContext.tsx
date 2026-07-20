@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useMemo, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useRef, ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
 import { Profile, Apartment, Payment, Expense, Issue, Lookup, Meeting, MeetingEvaluation, AppNotification, Announcement, BuildingAsset } from '../types';
 import { sendBrowserNotification } from '../lib/notifications';
@@ -178,6 +178,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return () => subscription.unsubscribe();
   }, []);
 
+  // Ref to always hold the latest state without causing dependency-induced resubscriptions
+  const stateRef = useRef(state);
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+
   // Subscribe to real-time changes on Supabase for live push notifications
   useEffect(() => {
     if (!supabase || !state.currentUser) return;
@@ -190,6 +196,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const handlePostgresChanges = (payload: any) => {
       const { table, eventType, new: newRecord, old: oldRecord } = payload;
       console.log('[Realtime] Change detected:', table, eventType, payload);
+
+      // Access latest state safely from our Ref BEFORE database reload updates it
+      const currentState = stateRef.current;
 
       // Reload the data in state so the app UI is updated in real-time!
       loadData();
@@ -208,20 +217,32 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           'meeting'
         );
       } else if (table === 'issues') {
-        if (eventType === 'UPDATE' && oldRecord && oldRecord.status !== newRecord.status) {
-          // If the tenant submitted this complaint
-          if (newRecord.reported_by === currentUserId) {
-            const statusLabels: Record<string, string> = {
-              'open': 'مفتوحة',
-              'in_progress': 'قيد المتابعة والعمل',
-              'resolved': 'تم حلها وإغلاقها'
-            };
-            const statusLabel = statusLabels[newRecord.status] || newRecord.status;
-            sendBrowserNotification(
-              '🔧 تحديث على شكواك',
-              `تغيرت حالة الشكوى "${newRecord.title}" إلى: ${statusLabel}`,
-              'issue'
-            );
+        if (eventType === 'UPDATE') {
+          // Compare with locally stored issue state before loadData completes
+          const existingIssue = currentState.issues.find(i => i.id === newRecord.id);
+          const oldStatus = existingIssue ? existingIssue.status : (oldRecord ? oldRecord.status : undefined);
+
+          // Only notify if status has actually changed!
+          if (oldStatus !== newRecord.status) {
+            // Check if the current user is the owner of this complaint
+            // Also fallback to check if user's apartment matches the issue's apartment
+            const userApartment = currentState.apartments.find(apt => apt.tenant_id === currentUserId);
+            const isUserIssue = newRecord.reported_by === currentUserId || 
+                                (userApartment && userApartment.id === newRecord.apartment_id);
+
+            if (isUserIssue) {
+              const statusLabels: Record<string, string> = {
+                'open': 'مفتوحة',
+                'in_progress': 'قيد المتابعة والعمل',
+                'resolved': 'تم حلها وإغلاقها'
+              };
+              const statusLabel = statusLabels[newRecord.status] || newRecord.status;
+              sendBrowserNotification(
+                '🔧 تحديث على شكواك',
+                `تغيرت حالة الشكوى "${newRecord.title}" إلى: ${statusLabel}`,
+                'issue'
+              );
+            }
           }
         } else if (eventType === 'INSERT' && userRole === 'admin') {
           // Admin gets notified of newly filed complaints
@@ -232,13 +253,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           );
         }
       } else if (table === 'payments') {
-        if (eventType === 'UPDATE' && oldRecord) {
+        if (eventType === 'UPDATE') {
           // Check if payment belongs to the current user's apartment
-          const userApartment = state.apartments.find(apt => apt.tenant_id === currentUserId);
+          const userApartment = currentState.apartments.find(apt => apt.tenant_id === currentUserId);
           const isUserPayment = userApartment && userApartment.id === newRecord.apartment_id;
 
           if (isUserPayment) {
-            if (oldRecord.verification_status !== newRecord.verification_status) {
+            const existingPayment = currentState.payments.find(p => p.id === newRecord.id);
+            const oldVerificationStatus = existingPayment ? existingPayment.verification_status : (oldRecord ? oldRecord.verification_status : undefined);
+            const oldStatus = existingPayment ? existingPayment.status : (oldRecord ? oldRecord.status : undefined);
+
+            if (oldVerificationStatus !== newRecord.verification_status) {
               const statusLabels: Record<string, string> = {
                 'pending': 'قيد التدقيق والتحقق',
                 'verified': 'تم قبولها وتأكيد السداد',
@@ -251,7 +276,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 `تم تحديث حالة دفعتك لشهر ${newRecord.month} إلى: ${statusLabel}`,
                 'payment'
               );
-            } else if (oldRecord.status !== newRecord.status) {
+            } else if (oldStatus !== newRecord.status) {
               const statusLabel = newRecord.status === 'paid' ? 'مدفوعة' : 'غير مدفوعة';
               sendBrowserNotification(
                 '💰 تحديث حالة الدفعة',
@@ -262,7 +287,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           }
         } else if (eventType === 'INSERT' && userRole === 'tenant') {
           // If a new payment request is inserted for the tenant's apartment
-          const userApartment = state.apartments.find(apt => apt.tenant_id === currentUserId);
+          const userApartment = currentState.apartments.find(apt => apt.tenant_id === currentUserId);
           if (userApartment && userApartment.id === newRecord.apartment_id) {
             sendBrowserNotification(
               '📅 دفعة مستحقة جديدة',
@@ -304,7 +329,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       console.log('[Realtime] Unsubscribing from changes');
       supabase.removeChannel(channel);
     };
-  }, [state.currentUser, state.apartments]);
+  }, [state.currentUser?.id, state.currentUser?.role]);
 
   const fetchCurrentUser = async (userId: string) => {
     if (!supabase) return;
