@@ -38,9 +38,10 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const requestUrl = new URL(event.request.url);
 
-  // Bypass caching for any API requests, Supabase database calls, or non-GET requests
+  // Bypass caching for non-http(s) schemes, API requests, Supabase, or non-GET requests
   if (
     event.request.method !== 'GET' ||
+    !requestUrl.protocol.startsWith('http') ||
     requestUrl.pathname.startsWith('/api/') ||
     requestUrl.href.includes('supabase.co')
   ) {
