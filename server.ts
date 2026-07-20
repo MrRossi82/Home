@@ -4,20 +4,28 @@ import { createServer as createViteServer } from "vite";
 import { createClient } from "@supabase/supabase-js";
 import cron from "node-cron";
 import nodemailer from "nodemailer";
-import admin from "firebase-admin";
+import { initializeApp, cert, getApps } from "firebase-admin/app";
+import { getMessaging } from "firebase-admin/messaging";
 
 let firebaseAdminApp: any = null;
 
 function getFirebaseAdmin() {
   if (firebaseAdminApp) return firebaseAdminApp;
 
+  // Check if an app is already initialized to avoid duplicate initialization errors
+  const apps = getApps();
+  if (apps.length > 0) {
+    firebaseAdminApp = apps[0];
+    return firebaseAdminApp;
+  }
+
   const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
   if (serviceAccountJson) {
     try {
       const serviceAccount = JSON.parse(serviceAccountJson);
-      firebaseAdminApp = admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount)
-      }, "push-admin");
+      firebaseAdminApp = initializeApp({
+        credential: cert(serviceAccount)
+      });
       return firebaseAdminApp;
     } catch (err) {
       console.error('Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON:', err);
@@ -30,13 +38,13 @@ function getFirebaseAdmin() {
 
   if (projectId && clientEmail && privateKey) {
     try {
-      firebaseAdminApp = admin.initializeApp({
-        credential: admin.credential.cert({
+      firebaseAdminApp = initializeApp({
+        credential: cert({
           projectId,
           clientEmail,
           privateKey: privateKey.replace(/\\n/g, '\n')
         })
-      }, "push-admin");
+      });
       return firebaseAdminApp;
     } catch (err) {
       console.error('Failed to initialize firebase-admin with separate keys:', err);
@@ -46,21 +54,14 @@ function getFirebaseAdmin() {
   // Real fallback with the Service Account provided by the user
   try {
     const hardcodedServiceAccount = {
-      type: "service_account",
-      project_id: "fazaaapp-84fee",
-      private_key_id: "58858b0b44089fb91c691656b0ecd5d1f3b0c666",
-      private_key: "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDIwtQ7QCvCAXhT\n1J3LnfMLKu3ZtweDxJJGN3KpwufR7wG58ATzYMPDBKiev+YGwWmVZn2iAlBKt+yK\nxXU9PEm5ghq53cxUX8edFb0rlPJLNoZkUQ4A8ByQfXqBuCkoAhR1KvrOBJqUIjeq\nuMsMwTXQ0zKh4zxnQUAxMcURZewkFMN8+CwyJqyZ7pgi0iOlBCqB4dhRJRZ6vAnA\nN12N/2y7fntUPHZQ6SJLIHWZxtIjks+jA6HpWrkE0QlAgjCSeDRltC7KXfCNTY0u\nCg0z1CdInED4hrQDHEHz+oQVhoJjwHt1RLUuxT0Z9wq9Kyd6EZ3kXvIW8mSjPImt\nTFcDQ4OdAgMBAAECggEACtRQ8htC4QBcTHABIl0poZYWEMg/NwaQ+gmpUpVJak5x\nXOV2Fudxgou19COXgGYe0GjKvm+lLh/1ZKzvEeJhJbO/cPw7tpIYveqmHXuM2wLH\ncBIxO7ANZ7vlB6n2n7UGWSWm3sW/zYgk/D1jR+kE1/gJ2KgId5dno4pdk36DJOpY\nquCJaHi4b6UghQ5Iy1SWe7ShJDHfsomGkzoYqp+GPTBgifkJAq7hzoYp6GTORMr8\nBUPCHaCYF70yYgC9aBMAxSGi2W/NuFMKOByjxAbdeQd6azPT3xoESsOBi/JPXur5\nlYMRpwD5TMrwRuWaKSLPXomOHdvEdiGgVCrbjQWe8QKBgQDsoxPK0SBa+X/LYKdo\nOutrrd6O8GiJUGBUhZgURgj4g6aU1+OZyaUP9DqlZzB3RztCh5tPn2yRDw7tqPn2\nDrHv8gxClsi+cFwBC5u/MGYgvpDlls84UmgArxa/YOKqMohvvJGySeBXiF1VlOZM\nrFTQ6mpanxpHGWWPE9UD1GhbBQKBgQDZMD6dABNS9sul/bHC3WoX48d1ZRq/UcjE\n7MBW50ZHE28ox9vZiyXc9tEemFPOPDap/qmf4MGOdrukVWuSHU0m7s4M+eewhEX6\n/cNEzfpUg5QtYosyJUbRrldI0ZF22YLWqosGs+Vky40y6xY6KEVQrLGe3FpX1w1d\nmyeFA3FZuQKBgBXva/dB+WjVdeYpWHtN8uKxZE8Fs/r+i19qXtWKRGyc74Uemgd4\nbKeU8RbCAPkdjj21ik0QLyUnKzAWmM0ZQZ9HZaGKjqMwkSa7p71KRD1GzPGrUBwd\nb2yYzlgBKCG0u3b4GN1ZAcW7a0NyoQJ8ewQ+post8mai0Qo5QWawetftAoGAGjvF\nlFkp/F9rAcW+7vanlfMhaICp1moeggrGwLh2uKcUSiy51XEFRcdaQwPLO6HySF5G\nRtVzC64zxAm9UIzRgN5fbRnSbnPLsCFusKTgk8zA3SqF/aya/UC9skH9/AkR0LQQ\nzuJz1tTvXTMgIC41ESWK3tFm6C1FpATVpS9hRaECgYEAlaNNyX7k7wuWcgyb8fwW\nB0IJAI3S8D84ZwIt4cZANl0g4eEp6fjlUANzrTvlW57fsVEOD0s064IFtg7dwwiz\nmzsxZTTI6N6MHGrHZIYZFZ29iUN+eIgiFKnjeP73TD3eT2XQtfcDZWdNFnOQXyce\nLn3LWWxKxbhBNQU5fP4CsP4=\n-----END PRIVATE KEY-----\n",
-      client_email: "firebase-adminsdk-foya5@fazaaapp-84fee.iam.gserviceaccount.com",
-      client_id: "115725618463350642733",
-      auth_uri: "https://accounts.google.com/o/oauth2/auth",
-      token_uri: "https://oauth2.googleapis.com/token",
-      auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
-      client_x509_cert_url: "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-foya5%40fazaaapp-84fee.iam.gserviceaccount.com"
+      projectId: "fazaaapp-84fee",
+      clientEmail: "firebase-adminsdk-foya5@fazaaapp-84fee.iam.gserviceaccount.com",
+      privateKey: "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDIwtQ7QCvCAXhT\n1J3LnfMLKu3ZtweDxJJGN3KpwufR7wG58ATzYMPDBKiev+YGwWmVZn2iAlBKt+yK\nxXU9PEm5ghq53cxUX8edFb0rlPJLNoZkUQ4A8ByQfXqBuCkoAhR1KvrOBJqUIjeq\nuMsMwTXQ0zKh4zxnQUAxMcURZewkFMN8+CwyJqyZ7pgi0iOlBCqB4dhRJRZ6vAnA\nN12N/2y7fntUPHZQ6SJLIHWZxtIjks+jA6HpWrkE0QlAgjCSeDRltC7KXfCNTY0u\nCg0z1CdInED4hrQDHEHz+oQVhoJjwHt1RLUuxT0Z9wq9Kyd6EZ3kXvIW8mSjPImt\nTFcDQ4OdAgMBAAECggEACtRQ8htC4QBcTHABIl0poZYWEMg/NwaQ+gmpUpVJak5x\nXOV2Fudxgou19COXgGYe0GjKvm+lLh/1ZKzvEeJhJbO/cPw7tpIYveqmHXuM2wLH\ncBIxO7ANZ7vlB6n2n7UGWSWm3sW/zYgk/D1jR+kE1/gJ2KgId5dno4pdk36DJOpY\nquCJaHi4b6UghQ5Iy1SWe7ShJDHfsomGkzoYqp+GPTBgifkJAq7hzoYp6GTORMr8\nBUPCHaCYF70yYgC9aBMAxSGi2W/NuFMKOByjxAbdeQd6azPT3xoESsOBi/JPXur5\nlYMRpwD5TMrwRuWaKSLPXomOHdvEdiGgVCrbjQWe8QKBgQDsoxPK0SBa+X/LYKdo\nOutrrd6O8GiJUGBUhZgURgj4g6aU1+OZyaUP9DqlZzB3RztCh5tPn2yRDw7tqPn2\nDrHv8gxClsi+cFwBC5u/MGYgvpDlls84UmgArxa/YOKqMohvvJGySeBXiF1VlOZM\nrFTQ6mpanxpHGWWPE9UD1GhbBQKBgQDZMD6dABNS9sul/bHC3WoX48d1ZRq/UcjE\n7MBW50ZHE28ox9vZiyXc9tEemFPOPDap/qmf4MGOdrukVWuSHU0m7s4M+eewhEX6\n/cNEzfpUg5QtYosyJUbRrldI0ZF22YLWqosGs+Vky40y6xY6KEVQrLGe3FpX1w1d\nmyeFA3FZuQKBgBXva/dB+WjVdeYpWHtN8uKxZE8Fs/r+i19qXtWKRGyc74Uemgd4\nbKeU8RbCAPkdjj21ik0QLyUnKzAWmM0ZQZ9HZaGKjqMwkSa7p71KRD1GzPGrUBwd\nb2yYzlgBKCG0u3b4GN1ZAcW7a0NyoQJ8ewQ+post8mai0Qo5QWawetftAoGAGjvF\nlFkp/F9rAcW+7vanlfMhaICp1moeggrGwLh2uKcUSiy51XEFRcdaQwPLO6HySF5G\nRtVzC64zxAm9UIzRgN5fbRnSbnPLsCFusKTgk8zA3SqF/aya/UC9skH9/AkR0LQQ\nzuJz1tTvXTMgIC41ESWK3tFm6C1FpATVpS9hRaECgYEAlaNNyX7k7wuWcgyb8fwW\nB0IJAI3S8D84ZwIt4cZANl0g4eEp6fjlUANzrTvlW57fsVEOD0s064IFtg7dwwiz\nmzsxZTTI6N6MHGrHZIYZFZ29iUN+eIgiFKnjeP73TD3eT2XQtfcDZWdNFnOQXyce\nLn3LWWxKxbhBNQU5fP4CsP4=\n-----END PRIVATE KEY-----\n",
     };
 
-    firebaseAdminApp = admin.initializeApp({
-      credential: admin.credential.cert(hardcodedServiceAccount)
-    }, "push-admin");
+    firebaseAdminApp = initializeApp({
+      credential: cert(hardcodedServiceAccount)
+    });
     console.log('[Push Server] Firebase Admin successfully initialized using the provided service account.');
     return firebaseAdminApp;
   } catch (err) {
@@ -171,7 +172,7 @@ async function startServer() {
     }
 
     try {
-      const messaging = messagingApp.messaging();
+      const messaging = getMessaging(messagingApp);
       const validTokens = tokens.filter(tok => tok && tok.trim() !== "");
       
       if (validTokens.length === 0) {
@@ -213,6 +214,31 @@ async function startServer() {
       });
 
       console.log(`[Push Server] Real FCM Delivery Result:`, response);
+      
+      // Cleanup invalid tokens
+      if (response.failureCount > 0 && supabaseAdmin) {
+        const failedTokens: string[] = [];
+        response.responses.forEach((resp, idx) => {
+          if (!resp.success && resp.error) {
+            const errorCode = resp.error.code;
+            if (errorCode === 'messaging/invalid-registration-token' ||
+                errorCode === 'messaging/registration-token-not-registered') {
+              failedTokens.push(validTokens[idx]);
+            }
+          }
+        });
+        
+        if (failedTokens.length > 0) {
+          console.log(`[Push Server] Removing ${failedTokens.length} invalid/unregistered tokens from database...`);
+          try {
+            await supabaseAdmin.from('fcm_tokens').delete().in('token', failedTokens);
+            console.log(`[Push Server] Successfully removed invalid tokens.`);
+          } catch (dbErr) {
+            console.error('[Push Server] Failed to remove invalid tokens from database:', dbErr);
+          }
+        }
+      }
+
       res.json({ 
         success: true, 
         simulated: false, 

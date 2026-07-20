@@ -133,11 +133,20 @@ export const listenToForegroundMessages = async (onMessageReceived: (payload: an
         
         // Show native system notification if supported, or bubble it up to UI
         if ('Notification' in window && Notification.permission === 'granted') {
-          new Notification(payload.notification?.title || 'إشعار جديد', {
-            body: payload.notification?.body || '',
-            icon: '/icon.svg',
-            dir: 'rtl',
-            lang: 'ar-JO'
+          navigator.serviceWorker.ready.then(registration => {
+            registration.showNotification(payload.notification?.title || 'إشعار جديد', {
+              body: payload.notification?.body || '',
+              icon: '/Home/icon.svg',
+              dir: 'rtl',
+              lang: 'ar-JO'
+            });
+          }).catch(err => {
+            new Notification(payload.notification?.title || 'إشعار جديد', {
+              body: payload.notification?.body || '',
+              icon: '/Home/icon.svg',
+              dir: 'rtl',
+              lang: 'ar-JO'
+            });
           });
         }
         

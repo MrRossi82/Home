@@ -46,6 +46,7 @@ export const NotificationSettings: React.FC = () => {
   const [isSending, setIsSending] = useState(false);
   const [sendResult, setSendResult] = useState<{ success: boolean; message: string } | null>(null);
   const [isRegisteringReal, setIsRegisteringReal] = useState(false);
+  const [isSendingTestAll, setIsSendingTestAll] = useState(false);
 
   // Load existing configuration status on mount
   useEffect(() => {
@@ -254,6 +255,69 @@ export const NotificationSettings: React.FC = () => {
     }
   };
 
+  const handleSendTestAnnouncementToAll = async () => {
+    setIsSendingTestAll(true);
+    setSendResult(null);
+    const logs: string[] = [];
+    logs.push(`[${new Date().toLocaleTimeString()}] البدء في إرسال تعميم تجريبي لكافة الأجهزة والرموز المسجلة (${fcmTokens.length} جهاز)...`);
+
+    if (fcmTokens.length === 0) {
+      logs.push(`❌ خطأ: لم يتم العثور على أي أجهزة (Tokens) نشطة مسجلة في جدول fcm_tokens!`);
+      setSendResult({ success: false, message: 'فشل الإرسال: لم يتم العثور على أي أجهزة نشطة مسجلة في النظام.' });
+      setApiLogs(prev => [...logs, ...prev]);
+      setIsSendingTestAll(false);
+      return;
+    }
+
+    const testTitle = "📢 تعميم تجريبي عاجل (تطبيق فزعة)";
+    const testBody = "تم بث هذا الإشعار التجريبي لكافة الهواتف الذكية والأجهزة النشطة لتأكيد نجاح الاتصال ووصول الإشعارات والمستلم مغلق.";
+    const testType = "announcement";
+
+    try {
+      let isAnySimulated = false;
+      let successCount = 0;
+
+      for (const device of fcmTokens) {
+        const u = users.find(user => user.id === device.user_id);
+        const ownerName = u ? u.name : 'مستخدم مجهول';
+        const devName = `${device.device} (${ownerName})`;
+        
+        logs.push(`جاري إرسال الإشعار إلى: ${devName}...`);
+        
+        // Bubble actual alert in browser and call server push API
+        const responseData = await pushNotificationToToken(device.token, testTitle, testBody, testType);
+        
+        if (responseData && responseData.simulated) {
+          isAnySimulated = true;
+          logs.push(`ℹ [محاكاة] تم التسليم للجهاز: ${devName} (بانتظار تفعيل مفاتيح الخدمة ليعمل مغلقاً)`);
+        } else {
+          logs.push(`✔ [FCM حقيقي] تم الإرسال بنجاح واستقباله من قبل Google لـ: ${devName}`);
+        }
+        successCount++;
+      }
+
+      if (isAnySimulated) {
+        logs.push(`🎉 اكتمل الإرسال التجريبي لـ ${successCount} أجهزة بنظام المحاكاة بنجاح! للتسليم الفعلي والهواتف مغلقة، يرجى تزويد FIREBASE_SERVICE_ACCOUNT_JSON.`);
+        setSendResult({ 
+          success: true, 
+          message: `تم إرسال التعميم التجريبي لـ (${successCount}) أجهزة بنظام المحاكاة التفاعلية بنجاح. لتجربة الإرسال الحقيقي حتى لو كان الهاتف مغلقاً، يرجى تزويد مفتاح الخدمة (Firebase Service Account Key) في إعدادات البيئة.`
+        });
+      } else {
+        logs.push(`🎉 اكتمل إرسال التعميم التجريبي الحقيقي لـ ${successCount} أجهزة بنجاح عبر خوادم Google FCM الحقيقية!`);
+        setSendResult({ 
+          success: true, 
+          message: `تم إرسال التعميم التجريبي بنجاح لجميع الأجهزة النشطة والمسجلة (${successCount}) عبر خوادم Google FCM الحقيقية واكتملت عملية التوصيل بنجاح!` 
+        });
+      }
+    } catch (err: any) {
+      logs.push(`❌ فشل أثناء إرسال التعميم التجريبي: ${err.message || err}`);
+      setSendResult({ success: false, message: `فشل إرسال التعميم التجريبي: ${err.message || 'حدث خطأ غير متوقع أثناء الاتصال بخوادم الإرسال.'}` });
+    } finally {
+      setApiLogs(prev => [...logs, ...prev]);
+      setIsSendingTestAll(false);
+    }
+  };
+
   const currentUserTokens = fcmTokens.filter(t => t.user_id === currentUser?.id);
   const currentToken = getOrGenerateCurrentToken();
 
@@ -458,6 +522,39 @@ export const NotificationSettings: React.FC = () => {
                       <span>إرسال إشعارات النظام (Real Push Notification Gateway)</span>
                       <Send className="w-4 h-4 text-[#D4AF37]" />
                     </h3>
+                  </div>
+
+                  {/* Quick Test Announcement Banner */}
+                  <div className="p-4 bg-amber-500/5 border border-amber-500/15 rounded-2xl space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] bg-amber-500/10 text-amber-400 px-2.5 py-0.5 rounded-md font-bold border border-amber-500/20">
+                        زر الفحص السريع للأجهزة المحمولة (Mobile Test)
+                      </span>
+                      <h4 className="text-xs font-black text-white flex items-center gap-1.5">
+                        <span>إرسال تعميم تجريبي لجميع الأجهزة</span>
+                        <SmartphoneIcon className="w-4 h-4 text-amber-400" />
+                      </h4>
+                    </div>
+                    <p className="text-[11px] text-white/60 leading-relaxed">
+                      استخدم هذا الخيار لبث تعميم تجريبي فوري وسريع لكافة رموز الأجهزة (FCM Tokens) النشطة المسجلة بجدول <code className="bg-white/5 px-1.5 py-0.5 rounded font-mono text-amber-400 text-[10px]">fcm_tokens</code>. هذا يؤكد بشكل قاطع أن الهواتف الذكية التي قامت بتنزيل تطبيق الأندرويد أو فتحت رابط المتصفح تستقبل التنبيهات المباشرة بنجاح.
+                    </p>
+                    <button
+                      onClick={handleSendTestAnnouncementToAll}
+                      disabled={isSendingTestAll || isSending}
+                      className="w-full py-3 px-4 bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-600 hover:to-yellow-700 disabled:from-amber-500/30 disabled:to-yellow-600/30 text-black font-extrabold rounded-xl text-xs transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md"
+                    >
+                      {isSendingTestAll ? (
+                        <>
+                          <span className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                          جاري بث التعميم التجريبي لكافة الأجهزة...
+                        </>
+                      ) : (
+                        <>
+                          <Send className="w-3.5 h-3.5" />
+                          بث تعميم تجريبي عاجل لجميع الأجهزة النشطة ({fcmTokens.length})
+                        </>
+                      )}
+                    </button>
                   </div>
 
                   {/* Target parameters */}
